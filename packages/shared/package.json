@@ -1,0 +1,21 @@
+{
+  "name": "@sllights/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Framework-free TypeScript shared by the SLLights web and mobile apps: domain types, role rules, formatting, date parsing, scan parsing, and the web<->mobile API contract.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,31 @@
+# Dependencies (every workspace)
+node_modules/
+
+# Next.js (apps/web)
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Expo (apps/mobile has its own .gitignore for native/Expo specifics)
+.expo/
+dist/
+
+# Environment files — real values never go in git.
+# The *.example files are committed on purpose.
+.env
+.env*.local
+!.env.example
+!.env.local.example
+
+# Vercel CLI link data
+.vercel
+
+# Test / tooling output
+coverage/
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+*.pem
