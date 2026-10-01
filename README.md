@@ -60,3 +60,4 @@ Testing on a phone against your local web app: run `npm run web`, then set
   (~9 MB) because `/getPoles` has no `poleNumber` filter. Ask for one before a
   wide rollout.
 - Offline install queue (dead zones) is not built yet.
+
