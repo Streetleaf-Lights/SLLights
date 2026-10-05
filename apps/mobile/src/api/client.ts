@@ -2,6 +2,7 @@ import {
   MOBILE_API,
   type CreatePoleIssueRequest,
   type MobileSignInResponse,
+  type MyCustomerResponse,
   type PoleInstallRequest,
   type PoleLookupResponse,
 } from "@sllights/shared/api-contract";
@@ -104,6 +105,11 @@ export function createApiClient({
     /** Best effort: APIM invalidates the token; the caller clears local state regardless. */
     signOut() {
       return request<{ success: true }>(MOBILE_API.signOut, { method: "POST", auth: true });
+    },
+
+    /** The signed-in user's own customer (null for Streetleaf staff). */
+    getMyCustomer() {
+      return request<MyCustomerResponse>(MOBILE_API.myCustomer, { method: "GET", auth: true });
     },
 
     lookupPole(poleNumber: string) {

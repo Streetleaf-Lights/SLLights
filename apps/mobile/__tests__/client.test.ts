@@ -88,3 +88,18 @@ describe("createApiClient", () => {
     expect((err as ApiError).isNetworkError).toBe(true);
   });
 });
+
+describe("getMyCustomer", () => {
+  it("GETs the caller's own customer with the Bearer token", async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(response(200, { customer: { id: "c1", name: "Coastal Power" } }));
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl });
+    api.setToken("jwt");
+
+    await expect(api.getMyCustomer()).resolves.toEqual({ customer: { id: "c1", name: "Coastal Power" } });
+
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://x.test/api/mobile/customer");
+    expect(init.method).toBe("GET");
+    expect(init.headers.Authorization).toBe("Bearer jwt");
+  });
+});

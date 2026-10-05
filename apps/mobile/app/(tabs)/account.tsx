@@ -1,15 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { isCustomerScoped } from "@sllights/shared/auth-role";
 import { useAuth, useSignedInUser } from "@/auth/AuthProvider";
 import { Button } from "@/ui/Button";
 import { colors, radius, space, type } from "@/ui/theme";
 
+/** null = still loading. */
+type CustomerLabel = string | null;
+
 export default function AccountScreen() {
-  const { signOut } = useAuth();
+  const { api, signOut } = useAuth();
   const { user, claims } = useSignedInUser();
   const [signingOut, setSigningOut] = useState(false);
-  const scope = isCustomerScoped(claims.role, claims.customerId) ? "Your customer's poles" : "All customers";
+  const [customer, setCustomer] = useState<CustomerLabel>(claims.customerId ? null : "Streetleaf");
+
+  useEffect(() => {
+    // Streetleaf staff don't belong to a customer: nothing to fetch.
+    if (!claims.customerId) return;
+    let cancelled = false;
+    api
+      .getMyCustomer()
+      .then(({ customer: result }) => !cancelled && setCustomer(result?.name ?? "—"))
+      .catch(() => !cancelled && setCustomer("Couldn't load"));
+    return () => {
+      cancelled = true;
+    };
+  }, [api, claims.customerId]);
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -17,7 +32,7 @@ export default function AccountScreen() {
         <Row label="Name" value={user.name} />
         <Row label="Email" value={user.email} />
         <Row label="Role" value={claims.role} />
-        <Row label="Can see" value={scope} />
+        <Row label="Customer" value={customer ?? "Loading…"} />
       </View>
       <Button
         label="Sign out"

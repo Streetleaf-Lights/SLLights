@@ -17,6 +17,7 @@ export const MOBILE_API = {
   signIn: "/api/mobile/signin",
   signOut: "/api/signout",
   poleLookup: "/api/mobile/pole",
+  myCustomer: "/api/mobile/customer",
   poleInstall: "/api/mobile/poleinstall",
   createPoleIssue: "/api/createpoleissue",
 } as const;
@@ -40,6 +41,15 @@ export interface MobileSignInRequest {
 export interface MobileSignInResponse {
   token: string;
   user: AuthUser;
+}
+
+/**
+ * GET /api/mobile/customer — the signed-in user's own customer. Null for
+ * Streetleaf staff, who don't belong to a customer. Deliberately takes no
+ * id: it can only ever return the caller's own customer.
+ */
+export interface MyCustomerResponse {
+  customer: { id: string; name: string } | null;
 }
 
 /** GET /api/mobile/pole?poleNumber=… — null when no pole with that number is visible to the caller. */

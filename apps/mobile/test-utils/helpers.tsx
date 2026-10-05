@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { ApiClient } from "@/api/client";
-import { AuthProvider } from "@/auth/AuthProvider";
+import { AuthProvider, useAuth } from "@/auth/AuthProvider";
 
 /** Unsigned JWT; the app only decodes tokens, never verifies them. */
 export function makeToken(payload: Record<string, unknown>): string {
@@ -16,6 +16,7 @@ export function fakeApi(overrides: Partial<Record<keyof ApiClient, jest.Mock>> =
     onUnauthorized: jest.fn(() => () => undefined),
     signIn: jest.fn(),
     signOut: jest.fn().mockResolvedValue({ success: true }),
+    getMyCustomer: jest.fn().mockResolvedValue({ customer: null }),
     lookupPole: jest.fn().mockResolvedValue({ pole: null }),
     createPoleIssue: jest.fn().mockResolvedValue({ success: true }),
     submitPoleInstall: jest.fn().mockResolvedValue({ success: true }),
@@ -26,5 +27,20 @@ export function fakeApi(overrides: Partial<Record<keyof ApiClient, jest.Mock>> =
 export function withAuth(api: ApiClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return <AuthProvider apiOverride={api}>{children}</AuthProvider>;
+  };
+}
+
+/** Like the root layout: renders children only once a stored session has loaded and signed in. */
+export function withSignedInAuth(api: ApiClient) {
+  function Gate({ children }: { children: ReactNode }) {
+    const { state } = useAuth();
+    return state.status === "signedIn" ? <>{children}</> : null;
+  }
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <AuthProvider apiOverride={api}>
+        <Gate>{children}</Gate>
+      </AuthProvider>
+    );
   };
 }
