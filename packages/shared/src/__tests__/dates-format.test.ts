@@ -53,3 +53,15 @@ describe("display formatting", () => {
     expect(panelLabelText({ panelStatusText: null, panelIdleReason: null })).toBe("—");
   });
 });
+
+import { formatFullAddress } from "../format";
+
+describe("formatFullAddress", () => {
+  it("joins the parts that exist, like the web customer header", () => {
+    expect(formatFullAddress({ address: "1 Main St", city: "Tampa", state: "FL", zip: "33602" })).toBe(
+      "1 Main St, Tampa, FL 33602",
+    );
+    expect(formatFullAddress({ address: null, city: "Tampa", state: null, zip: "33602" })).toBe("Tampa 33602");
+    expect(formatFullAddress({ address: null, city: null, state: null, zip: null })).toBeNull();
+  });
+});

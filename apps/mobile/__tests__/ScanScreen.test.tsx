@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import ScanScreen from "../app/(tabs)/index";
+import ScanScreen from "../app/(tabs)/scan";
 
 const mockPush = jest.fn();
 let mockPermission: { granted: boolean; canAskAgain: boolean } | null = { granted: true, canAskAgain: true };

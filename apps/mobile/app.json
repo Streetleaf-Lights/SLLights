@@ -4,6 +4,10 @@
     "slug": "sllights",
     "scheme": "sllights",
     "version": "0.1.0",
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,6 +27,15 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-leaf.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
       "expo-secure-store",
       [
         "expo-camera",
@@ -37,6 +50,14 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "SLLights records where a pole was installed when you confirm an install."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          }
         }
       ]
     ]

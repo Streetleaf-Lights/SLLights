@@ -18,6 +18,7 @@ export const MOBILE_API = {
   signOut: "/api/signout",
   poleLookup: "/api/mobile/pole",
   myCustomer: "/api/mobile/customer",
+  customers: "/api/mobile/customers",
   poleInstall: "/api/mobile/poleinstall",
   createPoleIssue: "/api/createpoleissue",
 } as const;
@@ -50,6 +51,66 @@ export interface MobileSignInResponse {
  */
 export interface MyCustomerResponse {
   customer: { id: string; name: string } | null;
+}
+
+/** Path builders for the per-customer monitoring routes. */
+export const mobileCustomerPath = (customerId: string) =>
+  `${MOBILE_API.customers}/${encodeURIComponent(customerId)}`;
+export const mobileProjectPath = (customerId: string, projectId: string) =>
+  `${mobileCustomerPath(customerId)}/projects/${encodeURIComponent(projectId)}`;
+
+/** GET /api/mobile/customers — Streetleaf staff only (403 for customer-scoped users). Active customers, by name. */
+export interface CustomerListResponse {
+  customers: { id: string; name: string }[];
+}
+
+/** Light counts as the web's StatGroup shows them. Null when APIM has no vitals for it. */
+export interface LightStats {
+  totalLights: number | null;
+  connectedLights: number | null;
+  totalFaults: number | null;
+  percentWorking: number | null;
+}
+
+/**
+ * GET /api/mobile/customers/{customerId} — the mobile counterpart of the
+ * web's CustomerOverview (customer header, summary stats, project list).
+ * A customer-scoped caller gets 404 for any customer but their own.
+ */
+export interface CustomerOverviewResponse {
+  customer: {
+    id: string;
+    name: string;
+    /** Address, city, state and zip joined the same way the web header does it. */
+    addressLine: string | null;
+    phone: string | null;
+    active: boolean;
+  };
+  summary: LightStats;
+  projects: ({ id: string; name: string; active: boolean } & LightStats)[];
+}
+
+/** One row of the project screen's pole list (trimmed from PoleVital). */
+export interface ProjectPoleRow {
+  id: string;
+  poleNumber: string;
+  connectedText: string | null;
+  overallStatusText: string | null;
+  lastUpdate: string | null;
+  openIssues: number;
+}
+
+/** GET /api/mobile/customers/{customerId}/projects/{projectId}. Same scoping as the overview. */
+export interface ProjectDetailResponse {
+  customer: { id: string; name: string };
+  project: { id: string; name: string; active: boolean } & LightStats;
+  /** Sorted by pole number, numeric-aware ("PAS-2" before "PAS-10"). */
+  poles: ProjectPoleRow[];
+}
+
+/** Whether a PoleIssue counts as open (APIM's status casing/whitespace varies). */
+export function isOpenIssue(issue: { status: string }): boolean {
+  return issue.status.trim().toLowerCase() === "open";
 }
 
 /** GET /api/mobile/pole?poleNumber=… — null when no pole with that number is visible to the caller. */

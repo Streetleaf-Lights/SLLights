@@ -1,5 +1,10 @@
 import {
   MOBILE_API,
+  mobileCustomerPath,
+  mobileProjectPath,
+  type CustomerListResponse,
+  type CustomerOverviewResponse,
+  type ProjectDetailResponse,
   type CreatePoleIssueRequest,
   type MobileSignInResponse,
   type MyCustomerResponse,
@@ -80,6 +85,15 @@ export function createApiClient({
           : `Request failed (${res.status}).`;
       throw new ApiError(message, res.status);
     }
+    // Every route answers with a JSON object. Anything else on a success
+    // status (an HTML login wall, a wrong EXPO_PUBLIC_API_BASE_URL, a proxy
+    // page) must not reach screens as `null` data.
+    if (body === null || typeof body !== "object") {
+      throw new ApiError(
+        `Unexpected response from the server (${res.status}). Check the app is pointed at the SLLights web app.`,
+        res.status,
+      );
+    }
     return body as T;
   }
 
@@ -110,6 +124,19 @@ export function createApiClient({
     /** The signed-in user's own customer (null for Streetleaf staff). */
     getMyCustomer() {
       return request<MyCustomerResponse>(MOBILE_API.myCustomer, { method: "GET", auth: true });
+    },
+
+    /** Streetleaf staff only: active customers to browse. */
+    listCustomers() {
+      return request<CustomerListResponse>(MOBILE_API.customers, { method: "GET", auth: true });
+    },
+
+    getCustomerOverview(customerId: string) {
+      return request<CustomerOverviewResponse>(mobileCustomerPath(customerId), { method: "GET", auth: true });
+    },
+
+    getProject(customerId: string, projectId: string) {
+      return request<ProjectDetailResponse>(mobileProjectPath(customerId, projectId), { method: "GET", auth: true });
     },
 
     lookupPole(poleNumber: string) {

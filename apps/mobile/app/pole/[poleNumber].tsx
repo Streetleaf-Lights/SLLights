@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
+import { isStreetleafStaff } from "@sllights/shared/auth-role";
 import type { PoleSummary } from "@sllights/shared/types";
 import { useAuth } from "@/auth/AuthProvider";
 import { InstallSection } from "@/pole/InstallSection";
@@ -19,7 +20,10 @@ export default function PoleScreen() {
   const params = useLocalSearchParams<{ poleNumber: string; scanned?: string }>();
   const poleNumber = String(params.poleNumber ?? "").toUpperCase();
   const scannedValue = typeof params.scanned === "string" ? params.scanned : null;
-  const { api } = useAuth();
+  const { api, state: auth } = useAuth();
+  // Recording installs is field work for Streetleaf staff (the server enforces this too).
+  const canRecordInstall =
+    auth.status === "signedIn" && isStreetleafStaff(auth.claims.role, auth.claims.customerId);
   const [lookup, setLookup] = useState<Lookup>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
@@ -63,12 +67,16 @@ export default function PoleScreen() {
         {lookup.status === "done" && !pole ? (
           <Banner
             tone="warning"
-            message="No pole with this number is on your account yet. If it's a new pole, you can still record the install. Otherwise, check the tag and scan again."
+            message={
+              canRecordInstall
+                ? "No pole with this number is on your account yet. If it's a new pole, you can still record the install. Otherwise, check the tag and scan again."
+                : "No pole with this number is on your account."
+            }
           />
         ) : null}
 
         {/* Install recording works even when lookup fails (e.g. weak signal): the pole number and GPS are what matter. */}
-        {lookup.status !== "loading" ? <InstallSection poleNumber={poleNumber} scannedValue={scannedValue} /> : null}
+        {lookup.status !== "loading" && canRecordInstall ? <InstallSection poleNumber={poleNumber} scannedValue={scannedValue} /> : null}
         {/* Issues attach to an existing pole record, so only offer this once one is found. */}
         {pole ? <ReportIssueSection poleNumber={pole.poleNumber} /> : null}
       </ScrollView>

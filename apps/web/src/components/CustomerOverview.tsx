@@ -6,17 +6,10 @@ import { withSearchContext } from "@/lib/url";
 import { formatPercent, initials } from "@/lib/text";
 import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
 
-/** Combines address, city, state, and zip into one display line, skipping any that are missing. */
-export function formatFullAddress(customer: Customer): string | null {
-  const cityStateZip = [
-    [customer.city, customer.state].filter(Boolean).join(", "),
-    customer.zip,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const parts = [customer.address, cityStateZip].filter(Boolean);
-  return parts.length > 0 ? parts.join(", ") : null;
-}
+// Moved to @sllights/shared so the mobile customer header joins addresses
+// identically; re-exported for existing imports.
+export { formatFullAddress } from "@sllights/shared/format";
+import { formatFullAddress } from "@sllights/shared/format";
 
 /**
  * The customer header (avatar/name/address/phone + project count), summary

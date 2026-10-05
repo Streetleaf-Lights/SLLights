@@ -68,3 +68,20 @@ export function panelLabelText(pole: {
   }
   return label;
 }
+
+/** Combines address, city, state, and zip into one display line, skipping any that are missing. */
+export function formatFullAddress(customer: {
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+}): string | null {
+  const cityStateZip = [
+    [customer.city, customer.state].filter(Boolean).join(", "),
+    customer.zip,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const parts = [customer.address, cityStateZip].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : null;
+}

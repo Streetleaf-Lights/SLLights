@@ -103,3 +103,49 @@ describe("getMyCustomer", () => {
     expect(init.headers.Authorization).toBe("Bearer jwt");
   });
 });
+
+describe("monitoring calls", () => {
+  it("hit the customer, overview and project routes with encoded ids", async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(response(200, {}));
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl });
+    api.setToken("jwt");
+
+    await api.listCustomers();
+    await api.getCustomerOverview("c 1");
+    await api.getProject("c1", "p/1");
+
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
+      "https://x.test/api/mobile/customers",
+      "https://x.test/api/mobile/customers/c%201",
+      "https://x.test/api/mobile/customers/c1/projects/p%2F1",
+    ]);
+    for (const [, init] of fetchImpl.mock.calls) expect(init.headers.Authorization).toBe("Bearer jwt");
+  });
+});
+
+describe("successful responses that aren't JSON", () => {
+  it("are reported as an error instead of being handed to screens as null", async () => {
+    // e.g. an HTML page served with 200 (a login wall, a wrong base URL).
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError("Unexpected token <");
+      },
+    });
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl });
+    api.setToken("jwt");
+
+    const err = await api.listCustomers().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).message).toMatch(/unexpected response/i);
+    expect((err as ApiError).status).toBe(200);
+  });
+
+  it("are reported as an error when the JSON body is null", async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(response(200, null));
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl });
+    api.setToken("jwt");
+    await expect(api.listCustomers()).rejects.toBeInstanceOf(ApiError);
+  });
+});

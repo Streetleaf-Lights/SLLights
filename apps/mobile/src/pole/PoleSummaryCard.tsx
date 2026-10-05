@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { isOpenIssue } from "@sllights/shared/api-contract";
 import { formatTimestamp } from "@sllights/shared/format";
 import type { PoleSummary } from "@sllights/shared/types";
 import { colors, radius, space, type } from "@/ui/theme";
@@ -19,7 +20,7 @@ function statusColor(label: string | null): string {
 }
 
 export function PoleSummaryCard({ poleNumber, pole }: { poleNumber: string; pole: PoleSummary | null }) {
-  const openIssues = pole?.poleIssues.filter((issue) => issue.status.trim().toLowerCase() === "open").length ?? 0;
+  const openIssues = pole?.poleIssues.filter(isOpenIssue).length ?? 0;
 
   return (
     <View style={styles.card}>

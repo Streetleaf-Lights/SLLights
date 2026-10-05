@@ -11,3 +11,14 @@ export function getApiBaseUrl(): string {
   }
   return url.replace(/\/+$/, "");
 }
+
+/**
+ * Dev-only: set EXPO_PUBLIC_HOLD_WELCOME=1 in apps/mobile/.env to keep the
+ * welcome screen up instead of auto-advancing after 5 s (for reviewing its
+ * design). Ignored in release builds (__DEV__ is false), so it can't ship
+ * by accident. Remove the line and restart with `npx expo start -c` to
+ * resume the normal behaviour.
+ */
+export function isWelcomeHeld(): boolean {
+  return __DEV__ && process.env.EXPO_PUBLIC_HOLD_WELCOME === "1";
+}

@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import PoleScreen from "../app/pole/[poleNumber]";
 import { ApiError } from "@/api/client";
-import { fakeApi, withAuth } from "../test-utils/helpers";
+import { sessionStore } from "@/auth/sessionStore";
+import { fakeApi, futureExp, makeToken, withSignedInAuth as withAuth } from "../test-utils/helpers";
 
 let mockParams: Record<string, string> = { poleNumber: "PAS-4938", scanned: "PAS-4938" };
 
@@ -32,8 +33,14 @@ const pole = {
   ],
 };
 
+async function signIn(role: string, customerId: string | null) {
+  const token = makeToken({ sub: "u1", role, exp: futureExp(), ...(customerId ? { customerId } : {}) });
+  await sessionStore.save({ token, user: { id: "u1", name: "U", email: "u@x.com", role, customerId } });
+}
+
 describe("PoleScreen", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await signIn("Streetleaf Admin", null);
     mockParams = { poleNumber: "PAS-4938", scanned: "PAS-4938" };
     Location.requestForegroundPermissionsAsync.mockResolvedValue({ granted: true });
   });
@@ -135,5 +142,20 @@ describe("PoleScreen", () => {
       }),
     );
     expect(await screen.findByText("Issue reported.")).toBeTruthy();
+  });
+
+  it("doesn't offer install recording to customer users", async () => {
+    await signIn("Customer Owner", "c1");
+    const api = fakeApi({ lookupPole: jest.fn().mockResolvedValue({ pole }) });
+    await render(<PoleScreen />, { wrapper: withAuth(api) });
+    expect(await screen.findByText("Report an issue")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Record install" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Capture location" })).toBeNull();
+  });
+
+  it("doesn't suggest recording an install for an unknown pole to customer users", async () => {
+    await signIn("Customer Owner", "c1");
+    await render(<PoleScreen />, { wrapper: withAuth(fakeApi()) });
+    expect(await screen.findByText("No pole with this number is on your account.")).toBeTruthy();
   });
 });

@@ -54,3 +54,18 @@ describe("getSecondsUntilExpiry", () => {
     expect(getSecondsUntilExpiry("bad", now)).toBeNull();
   });
 });
+
+import { isStreetleafStaff } from "../auth-role";
+
+describe("isStreetleafStaff", () => {
+  it.each([
+    ["Streetleaf Admin", null, true],
+    ["User", null, true], // a "Streetleaf User" / crew member
+    ["Customer Admin", "c1", false],
+    ["Customer Owner", "c1", false],
+    ["User", "c1", false], // a "Customer User"
+    [null, null, false],
+  ])("role %s with customerId %s -> %s", (role, customerId, expected) => {
+    expect(isStreetleafStaff(role, customerId)).toBe(expected);
+  });
+});

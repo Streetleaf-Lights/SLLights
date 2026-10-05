@@ -4,5 +4,6 @@ export * from "./auth-role";
 export * from "./dates";
 export * from "./format";
 export * from "./scan";
+export * from "./status";
 export * from "./api-contract";
 export { colors, type ColorToken } from "./theme";

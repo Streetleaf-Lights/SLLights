@@ -46,4 +46,16 @@ describe("POST /api/mobile/poleinstall", () => {
     expect(res.status).toBe(501);
     expect((await res.json()).error).toMatch(/isn't available yet/);
   });
+
+  it("403s customer-scoped users, before validating anything", async () => {
+    const customerToken = testToken({ sub: "c", role: "Customer Owner", customerId: "c1", exp: Math.floor(Date.now() / 1000) + 3600 });
+    const res = await POST(
+      new NextRequest("http://localhost/api/mobile/poleinstall", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", authorization: `Bearer ${customerToken}` },
+        body: JSON.stringify(valid),
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
 });

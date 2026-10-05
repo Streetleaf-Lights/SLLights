@@ -65,3 +65,16 @@ export function getSecondsUntilExpiry(token: string, nowMs: number = Date.now())
   const secondsRemaining = payload.exp - Math.floor(nowMs / 1000);
   return secondsRemaining > 0 ? secondsRemaining : 0;
 }
+
+/**
+ * Streetleaf's own people: a Streetleaf Admin, or a Streetleaf user/crew
+ * member (any role not tied to a customer). The inverse of
+ * isCustomerScoped. Gates field tools — the mobile Scan tab and install
+ * recording — which customers don't use.
+ */
+export function isStreetleafStaff(
+  role: string | null | undefined,
+  customerId: string | null | undefined,
+): boolean {
+  return role != null && !isCustomerScoped(role, customerId);
+}
