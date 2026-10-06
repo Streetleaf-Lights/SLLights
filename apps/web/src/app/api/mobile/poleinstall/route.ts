@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { validatePoleInstallRequest } from "@sllights/shared/api-contract";
-import { isStreetleafStaff } from "@sllights/shared/auth-role";
+import { canUseFieldTools } from "@sllights/shared/auth-role";
 import { requireSession } from "@/lib/require-session";
 
 /**
@@ -15,15 +15,15 @@ import { requireSession } from "@/lib/require-session";
  *
  * When the APIM operation exists: add an apim.ts function (Bearer token +
  * subscription key, like createPoleIssue), call it here with
- * `validation.value` and `auth.token`. Only Streetleaf staff may record
- * installs (customer-scoped users get 403).
+ * `validation.value` and `auth.token`. Only Streetleaf Admin and Streetleaf
+ * Crew may record installs (everyone else gets 403).
  */
 export async function POST(request: NextRequest) {
   const auth = requireSession(request);
   if (!auth.ok) return auth.response;
 
-  // Installs are field work for Streetleaf staff; customers can't record them.
-  if (!isStreetleafStaff(auth.session.role, auth.session.customerId)) {
+  // Installs are field work: Streetleaf Admin and Streetleaf Crew only.
+  if (!canUseFieldTools(auth.session.role)) {
     return NextResponse.json({ error: "Recording installs isn't available for your account." }, { status: 403 });
   }
 

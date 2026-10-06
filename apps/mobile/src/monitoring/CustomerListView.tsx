@@ -1,9 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { paginate } from "@sllights/shared/pagination";
 import { useApiQuery } from "@/api/useApiQuery";
 import { useAuth } from "@/auth/AuthProvider";
 import { ListRow } from "@/ui/ListRow";
+import { Pagination } from "@/ui/Pagination";
 import { QueryStatus } from "@/ui/QueryStatus";
 import { SearchField } from "@/ui/SearchField";
 import { colors, space, type } from "@/ui/theme";
@@ -13,6 +15,8 @@ export function CustomerListView() {
   const { api } = useAuth();
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const listRef = useRef<FlatList<{ id: string; name: string }>>(null);
   const load = useCallback(() => api.listCustomers(), [api]);
   const { state, retry, refresh } = useApiQuery(load);
 
@@ -22,11 +26,26 @@ export function CustomerListView() {
     return q ? state.data.customers.filter((c) => c.name.toLowerCase().includes(q)) : state.data.customers;
   }, [state, query]);
 
+  // 10 per page, like the web's customer table.
+  const current = paginate(customers, page);
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  };
+
+  // A new search starts from page 1, as on the web.
+  const search = (text: string) => {
+    setQuery(text);
+    setPage(1);
+  };
+
   if (state.status !== "success") return <QueryStatus state={state} onRetry={retry} />;
 
   return (
     <FlatList
-      data={customers}
+      ref={listRef}
+      data={current.items}
       keyExtractor={(customer) => customer.id}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
@@ -35,10 +54,15 @@ export function CustomerListView() {
       }
       ListHeaderComponent={
         <View style={styles.header}>
-          <SearchField value={query} onChangeText={setQuery} placeholder="Search customers" />
+          <SearchField value={query} onChangeText={search} placeholder="Search customers" />
           <Text style={type.small}>
-            {customers.length === 1 ? "1 customer" : `${customers.length} customers`}
+            {current.totalPages > 1
+              ? `Showing ${current.firstItem}–${current.lastItem} of ${current.totalItems} customers`
+              : current.totalItems === 1
+                ? "1 customer"
+                : `${current.totalItems} customers`}
           </Text>
+          <Pagination page={current.page} totalPages={current.totalPages} onPageChange={goToPage} />
         </View>
       }
       ListEmptyComponent={<Text style={type.small}>No customers match “{query.trim()}”.</Text>}

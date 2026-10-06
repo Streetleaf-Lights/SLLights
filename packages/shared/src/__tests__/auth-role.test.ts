@@ -55,17 +55,36 @@ describe("getSecondsUntilExpiry", () => {
   });
 });
 
-import { isStreetleafStaff } from "../auth-role";
+import { canUseFieldTools } from "../auth-role";
 
-describe("isStreetleafStaff", () => {
+describe("canUseFieldTools", () => {
   it.each([
-    ["Streetleaf Admin", null, true],
-    ["User", null, true], // a "Streetleaf User" / crew member
-    ["Customer Admin", "c1", false],
-    ["Customer Owner", "c1", false],
-    ["User", "c1", false], // a "Customer User"
-    [null, null, false],
-  ])("role %s with customerId %s -> %s", (role, customerId, expected) => {
-    expect(isStreetleafStaff(role, customerId)).toBe(expected);
+    ["Streetleaf Admin", true],
+    ["Streetleaf Crew", true],
+    ["User", false], // Streetleaf User or Customer User alike
+    ["Customer Admin", false],
+    ["Customer Owner", false],
+    ["streetleaf admin", false], // exact role names only
+    [null, false],
+  ])("%s -> %s", (role, expected) => {
+    expect(canUseFieldTools(role)).toBe(expected);
+  });
+});
+
+describe("decodeSessionToken: 'no customer' sentinels", () => {
+  // Token issuers often can't emit a null claim, so "no customer" arrives as
+  // an empty string (or an all-zero GUID) instead of a missing claim.
+  it.each([
+    ["empty string", ""],
+    ["whitespace", "  "],
+    ["all-zero GUID", "00000000-0000-0000-0000-000000000000"],
+  ])("treats %s as no customer", (_label, customerId) => {
+    const session = decodeSessionToken(makeToken({ sub: "u1", role: "User", customerId }));
+    expect(session?.customerId).toBeNull();
+    expect(isCustomerScoped(session?.role, session?.customerId)).toBe(false);
+  });
+
+  it("keeps a real customer id (trimmed)", () => {
+    expect(decodeSessionToken(makeToken({ sub: "u1", role: "User", customerId: " c1 " }))?.customerId).toBe("c1");
   });
 });

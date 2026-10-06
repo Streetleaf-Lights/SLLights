@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { POST } from "@/app/api/mobile/poleinstall/route";
 import { testToken } from "@/testing/testToken";
 
-const token = testToken({ sub: "u1", role: "User", exp: Math.floor(Date.now() / 1000) + 3600 });
+const token = testToken({ sub: "u1", role: "Streetleaf Admin", exp: Math.floor(Date.now() / 1000) + 3600 });
 
 function request(body: unknown, withToken = true) {
   return new NextRequest("http://localhost/api/mobile/poleinstall", {
@@ -47,15 +47,32 @@ describe("POST /api/mobile/poleinstall", () => {
     expect((await res.json()).error).toMatch(/isn't available yet/);
   });
 
-  it("403s customer-scoped users, before validating anything", async () => {
-    const customerToken = testToken({ sub: "c", role: "Customer Owner", customerId: "c1", exp: Math.floor(Date.now() / 1000) + 3600 });
+  it.each([
+    ["a Streetleaf User", "User", undefined],
+    ["a Customer User", "User", "c1"],
+    ["a Customer Owner", "Customer Owner", "c1"],
+  ])("403s %s, before validating anything", async (_label, role, customerId) => {
+    const other = testToken({ sub: "x", role, customerId, exp: Math.floor(Date.now() / 1000) + 3600 });
     const res = await POST(
       new NextRequest("http://localhost/api/mobile/poleinstall", {
         method: "POST",
-        headers: { "Content-Type": "application/json", authorization: `Bearer ${customerToken}` },
+        headers: { "Content-Type": "application/json", authorization: `Bearer ${other}` },
         body: JSON.stringify(valid),
       }),
     );
     expect(res.status).toBe(403);
   });
+
+  it("accepts Streetleaf Crew past the role check", async () => {
+    const crew = testToken({ sub: "c", role: "Streetleaf Crew", exp: Math.floor(Date.now() / 1000) + 3600 });
+    const res = await POST(
+      new NextRequest("http://localhost/api/mobile/poleinstall", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", authorization: `Bearer ${crew}` },
+        body: JSON.stringify(valid),
+      }),
+    );
+    expect(res.status).toBe(501);
+  });
+
 });

@@ -27,8 +27,22 @@ export function decodeSessionToken(token: string): SessionUser | null {
   return {
     id: payload.sub,
     role: payload.role,
-    customerId: typeof payload.customerId === "string" ? payload.customerId : null,
+    customerId: normalizeCustomerId(payload.customerId),
   };
+}
+
+const EMPTY_GUID = /^0{8}-0{4}-0{4}-0{4}-0{12}$/;
+
+/**
+ * "No customer" can arrive as a missing claim, null, an empty string, or an
+ * all-zero GUID (token issuers often can't emit null claims). All mean the
+ * same thing — a Streetleaf user — and must become null, or isCustomerScoped
+ * would treat a Streetleaf User as belonging to a customer.
+ */
+function normalizeCustomerId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed === "" || EMPTY_GUID.test(trimmed) ? null : trimmed;
 }
 
 /**
@@ -67,14 +81,13 @@ export function getSecondsUntilExpiry(token: string, nowMs: number = Date.now())
 }
 
 /**
- * Streetleaf's own people: a Streetleaf Admin, or a Streetleaf user/crew
- * member (any role not tied to a customer). The inverse of
- * isCustomerScoped. Gates field tools — the mobile Scan tab and install
- * recording — which customers don't use.
+ * Roles allowed to use field tools — the mobile Scan tab and install
+ * recording. An explicit list rather than "anyone without a customer":
+ * plain Users (Streetleaf or customer) don't get field tools.
+ * "Streetleaf Crew" must match the role name APIM issues exactly.
  */
-export function isStreetleafStaff(
-  role: string | null | undefined,
-  customerId: string | null | undefined,
-): boolean {
-  return role != null && !isCustomerScoped(role, customerId);
+export const FIELD_TOOL_ROLES: readonly string[] = ["Streetleaf Admin", "Streetleaf Crew"];
+
+export function canUseFieldTools(role: string | null | undefined): boolean {
+  return role != null && FIELD_TOOL_ROLES.includes(role);
 }

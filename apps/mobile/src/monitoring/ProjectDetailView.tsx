@@ -1,15 +1,16 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import type { ProjectPoleRow } from "@sllights/shared/api-contract";
+import type { ProjectDetailResponse, ProjectPoleRow } from "@sllights/shared/api-contract";
 import { formatTimestamp } from "@sllights/shared/format";
+import { paginate } from "@sllights/shared/pagination";
 import { connectedTone, overallStatusTone } from "@sllights/shared/status";
 import { useApiQuery } from "@/api/useApiQuery";
 import { useAuth } from "@/auth/AuthProvider";
-import { count, percent } from "@/ui/format";
+import { count } from "@/ui/format";
 import { ListRow } from "@/ui/ListRow";
+import { Pagination } from "@/ui/Pagination";
 import { QueryStatus } from "@/ui/QueryStatus";
-import { SearchField } from "@/ui/SearchField";
 import { StatRow } from "@/ui/StatRow";
 import { toneColor } from "@/ui/status";
 import { colors, radius, space, type } from "@/ui/theme";
@@ -28,34 +29,38 @@ export function ProjectDetailView({
   customerId: string;
   projectId: string;
   viewerScoped: boolean;
-  onLoaded?: (name: string) => void;
+  /** Called with each successful load (the screen uses the customer name for its back button). */
+  onLoaded?: (data: ProjectDetailResponse) => void;
 }) {
   const { api } = useAuth();
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const listRef = useRef<FlatList<ProjectPoleRow>>(null);
   const load = useCallback(async () => {
     const data = await api.getProject(customerId, projectId);
-    onLoaded?.(data.project.name);
+    onLoaded?.(data);
     return data;
   }, [api, customerId, projectId, onLoaded]);
   const { state, retry, refresh } = useApiQuery(load);
 
-  const poles = useMemo(() => {
-    if (state.status !== "success") return [];
-    const q = query.trim().toUpperCase();
-    return q ? state.data.poles.filter((pole) => pole.poleNumber.toUpperCase().includes(q)) : state.data.poles;
-  }, [state, query]);
+  // 10 poles per page, paged the same way as the customer list.
+  const current = paginate(state.status === "success" ? state.data.poles : [], page);
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  };
 
   if (state.status !== "success") return <QueryStatus state={state} onRetry={retry} />;
   const { customer, project } = state.data;
 
   return (
     <FlatList
-      data={poles}
+      ref={listRef}
+      data={current.items}
       keyExtractor={(pole) => pole.id}
       contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-      initialNumToRender={15}
+      initialNumToRender={10}
       refreshControl={
         <RefreshControl refreshing={state.refreshing} onRefresh={refresh} tintColor={colors.accentStrong} />
       }
@@ -68,33 +73,31 @@ export function ProjectDetailView({
             </Text>
             {project.active ? null : <Text style={type.small}>Inactive project</Text>}
           </View>
+          {/* Customer-scoped viewers get Total lights and Total faults only (no Connected, as on the web). */}
           <StatRow
             stats={[
               { label: "Total lights", value: count(project.totalLights) },
-              viewerScoped
-                ? { label: "Lights working", value: percent(project.percentWorking) }
-                : { label: "Connected", value: count(project.connectedLights) },
-              { label: "Total faults", value: count(project.totalFaults), emphasis: "flagged" },
+              ...(viewerScoped ? [] : [{ label: "Connected", value: count(project.connectedLights) }]),
+              { label: "Total faults", value: count(project.totalFaults), emphasis: "flagged" as const },
             ]}
           />
-          <SearchField value={query} onChangeText={setQuery} placeholder="Search pole numbers" />
           <Text style={type.small}>
-            {poles.length === 1 ? "1 pole" : `${poles.length} poles`}
-            {query.trim() ? ` matching “${query.trim()}”` : ""}
+            {current.totalPages > 1
+              ? `Showing ${current.firstItem}–${current.lastItem} of ${current.totalItems} poles`
+              : current.totalItems === 1
+                ? "1 pole"
+                : `${current.totalItems} poles`}
           </Text>
+          <Pagination page={current.page} totalPages={current.totalPages} onPageChange={goToPage} />
         </View>
       }
-      ListEmptyComponent={
-        <Text style={type.small}>
-          {query.trim() ? "No poles match that number." : "No poles on file for this project yet."}
-        </Text>
-      }
+      ListEmptyComponent={<Text style={type.small}>No poles on file for this project yet.</Text>}
       ItemSeparatorComponent={() => <View style={{ height: space.sm }} />}
       renderItem={({ item }) => (
         <PoleRow
           pole={item}
           viewerScoped={viewerScoped}
-          onPress={() => router.push({ pathname: "/pole/[poleNumber]", params: { poleNumber: item.poleNumber } })}
+          onPress={() => router.push({ pathname: "/(tabs)/(home)/pole/[poleNumber]", params: { poleNumber: item.poleNumber } })}
         />
       )}
     />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { isStreetleafStaff } from "@sllights/shared/auth-role";
+import { canUseFieldTools } from "@sllights/shared/auth-role";
 import type { PoleSummary } from "@sllights/shared/types";
 import { useAuth } from "@/auth/AuthProvider";
 import { InstallSection } from "@/pole/InstallSection";
@@ -21,9 +21,9 @@ export default function PoleScreen() {
   const poleNumber = String(params.poleNumber ?? "").toUpperCase();
   const scannedValue = typeof params.scanned === "string" ? params.scanned : null;
   const { api, state: auth } = useAuth();
-  // Recording installs is field work for Streetleaf staff (the server enforces this too).
+  // Recording installs is field work: Streetleaf Admin and Crew only (the server enforces this too).
   const canRecordInstall =
-    auth.status === "signedIn" && isStreetleafStaff(auth.claims.role, auth.claims.customerId);
+    auth.status === "signedIn" && canUseFieldTools(auth.claims.role);
   const [lookup, setLookup] = useState<Lookup>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 

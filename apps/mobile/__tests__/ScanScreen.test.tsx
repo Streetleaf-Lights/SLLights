@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import ScanScreen from "../app/(tabs)/scan";
+import ScanScreen from "../app/(tabs)/(scan)/scan";
 
 const mockPush = jest.fn();
 let mockPermission: { granted: boolean; canAskAgain: boolean } | null = { granted: true, canAskAgain: true };
@@ -43,7 +43,7 @@ describe("ScanScreen", () => {
     await scan("https://streetleaf.com/poles/pas-4938");
 
     expect(mockPush).toHaveBeenCalledWith({
-      pathname: "/pole/[poleNumber]",
+      pathname: "/(tabs)/(scan)/pole/[poleNumber]",
       params: { poleNumber: "PAS-4938", scanned: "https://streetleaf.com/poles/pas-4938" },
     });
     expect(Haptics.notificationAsync).toHaveBeenCalledWith("success");
@@ -72,7 +72,7 @@ describe("ScanScreen", () => {
     await render(<ScanScreen />);
     await fireEvent.changeText(screen.getByLabelText("Pole number"), " pas-77 ");
     await fireEvent.press(screen.getByRole("button", { name: "Open" }));
-    expect(mockPush).toHaveBeenCalledWith({ pathname: "/pole/[poleNumber]", params: { poleNumber: "PAS-77" } });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/(tabs)/(scan)/pole/[poleNumber]", params: { poleNumber: "PAS-77" } });
   });
 
   it("toggles the flashlight", async () => {

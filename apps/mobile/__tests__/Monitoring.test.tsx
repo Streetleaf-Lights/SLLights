@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
-import HomeTab from "../app/(tabs)/index";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import HomeTab from "../app/(tabs)/(home)/index";
 import { ApiError } from "@/api/client";
 import { sessionStore } from "@/auth/sessionStore";
 import { CustomerListView } from "@/monitoring/CustomerListView";
@@ -36,6 +36,19 @@ async function signIn(role: string, customerId: string | null) {
 }
 
 beforeEach(() => mockPush.mockClear());
+
+// FlatList (VirtualizedList) renders rows in batches on timers. With real
+// timers a busy machine can fire one outside act() (a warning that would
+// hide real ones), so these tests use fake timers and flush what's pending
+// inside act() before cleanup. RNTL advances fake timers itself while
+// findBy*/waitFor are waiting.
+beforeEach(() => jest.useFakeTimers());
+afterEach(async () => {
+  await act(async () => {
+    jest.runOnlyPendingTimers();
+  });
+  jest.useRealTimers();
+});
 
 describe("CustomerOverviewView", () => {
   it("shows the customer header, summary and projects, and opens a project", async () => {
@@ -105,6 +118,128 @@ describe("CustomerListView", () => {
   });
 });
 
+describe("CustomerListView pagination", () => {
+  // n customers named "Customer 01".. (zero-padded so they sort in order).
+  const customersOf = (n: number) =>
+    Array.from({ length: n }, (_, i) => {
+      const id = String(i + 1).padStart(2, "0");
+      return { id: `c${id}`, name: `Customer ${id}` };
+    });
+
+  async function renderList(n: number) {
+    await signIn("Streetleaf Admin", null);
+    const api = fakeApi({ listCustomers: jest.fn().mockResolvedValue({ customers: customersOf(n) }) });
+    await render(<CustomerListView />, { wrapper: withSignedInAuth(api) });
+    await screen.findByText(`Showing 1–10 of ${n} customers`);
+  }
+
+  const pageButton = (p: number) => screen.getByRole("button", { name: `Page ${p}` });
+  const pageNumbers = () =>
+    screen.getAllByRole("button", { name: /^Page \d+$/ }).map((b) => Number(b.props.accessibilityLabel.slice(5)));
+  // The "…" is hidden from screen readers on purpose, so include hidden elements.
+  /** The pager row in on-screen order, as compact text: "1 ‹ … 4 5 6 … › 9". */
+  const pagerRow = () =>
+    screen
+      .getAllByRole("button", { name: /^(Page \d+|Previous page|Next page)$/ })
+      .map((b) => {
+        const label: string = b.props.accessibilityLabel;
+        return label === "Previous page" ? "‹" : label === "Next page" ? "›" : label.slice(5);
+      })
+      .join(" ");
+  const gaps = () => screen.queryAllByTestId("pager-gap", { includeHiddenElements: true }).length;
+
+  it("shows 10 per page with arrow-only Previous/Next and numbered pages", async () => {
+    await renderList(23);
+    expect(screen.getByText("Customer 10")).toBeTruthy();
+    expect(screen.queryByText("Customer 11")).toBeNull();
+    expect(pageNumbers()).toEqual([1, 2, 3]);
+    expect(pageButton(1).props.accessibilityState.selected).toBe(true);
+    expect(gaps()).toBe(0);
+    // Arrows only: no visible "Previous"/"Next" or "Page x of y" text.
+    expect(screen.queryByText(/^(Previous|Next)$/)).toBeNull();
+    expect(screen.queryByText(/^Page \d+ of/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Previous page" }).props.accessibilityState.disabled).toBe(true);
+
+    await fireEvent.press(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByText("Showing 11–20 of 23 customers")).toBeTruthy();
+    expect(screen.getByText("Customer 11")).toBeTruthy();
+    expect(pageButton(2).props.accessibilityState.selected).toBe(true);
+
+    await fireEvent.press(pageButton(3));
+    expect(screen.getByText("Customer 23")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Next page" }).props.accessibilityState.disabled).toBe(true);
+  });
+
+  it("puts the first and last page outside the arrows, like the web, only when needed", async () => {
+    await renderList(57); // 6 pages
+    expect(pagerRow()).toBe("‹ 1 2 3 › 6"); // plus a trailing …
+    expect(gaps()).toBe(1);
+
+    await fireEvent.press(pageButton(3)); // window 2 3 4: 1 is right next to it, so no leading …
+    expect(pagerRow()).toBe("1 ‹ 2 3 4 › 6");
+    expect(gaps()).toBe(1);
+
+    await fireEvent.press(pageButton(6)); // jump straight to the last page
+    expect(screen.getByText("Showing 51–57 of 57 customers")).toBeTruthy();
+    expect(pagerRow()).toBe("1 ‹ 4 5 6 ›");
+    expect(gaps()).toBe(1);
+  });
+
+
+  it("shows … on both sides in the middle of a long list, and jumps to page 1", async () => {
+    await renderList(90); // 9 pages
+    await fireEvent.press(pageButton(3));
+    await fireEvent.press(pageButton(4));
+    expect(pagerRow()).toBe("1 ‹ 3 4 5 › 9"); // 1 ‹ … 3 4 5 … › 9
+    expect(gaps()).toBe(2);
+
+    await fireEvent.press(pageButton(1));
+    expect(screen.getByText("Showing 1–10 of 90 customers")).toBeTruthy();
+    expect(pagerRow()).toBe("‹ 1 2 3 › 9");
+  });
+
+
+  it("sits above the list, right under the Showing line", async () => {
+    await renderList(23);
+    // Walk the rendered tree top-to-bottom, collecting text and button labels in order.
+    type Node = { props?: Record<string, unknown>; children?: (Node | string)[] | null } | string | null;
+    const order: string[] = [];
+    const walk = (node: Node | Node[]) => {
+      if (!node) return;
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (typeof node === "string") return void order.push(node);
+      const label = node.props?.accessibilityLabel;
+      if (typeof label === "string") order.push(label);
+      (node.children ?? []).forEach(walk);
+    };
+    walk(screen.toJSON() as Node);
+
+    const showing = order.indexOf("Showing 1–10 of 23 customers");
+    const pager = order.indexOf("Next page");
+    const firstRow = order.indexOf("Customer 01");
+    expect(showing).toBeGreaterThanOrEqual(0);
+    expect(showing).toBeLessThan(pager);
+    expect(pager).toBeLessThan(firstRow);
+  });
+
+
+  it("goes back to page 1 when the search changes, and hides paging when one page is enough", async () => {
+    await renderList(23);
+    await fireEvent.press(screen.getByRole("button", { name: "Next page" }));
+    expect(pageButton(2).props.accessibilityState.selected).toBe(true);
+
+    // "1" matches 01, 10–19 and 21 → 12 results → still two pages, but back on page 1.
+    await fireEvent.changeText(screen.getByLabelText("Search customers"), "1");
+    expect(screen.getByText("Showing 1–10 of 12 customers")).toBeTruthy();
+    expect(pageButton(1).props.accessibilityState.selected).toBe(true);
+
+    await fireEvent.changeText(screen.getByLabelText("Search customers"), "customer 2");
+    expect(screen.getByText("4 customers")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Page \d+$/ })).toBeNull();
+  });
+});
+
 describe("ProjectDetailView", () => {
   it("lists poles with 48h status and connection for staff, and opens a pole", async () => {
     await signIn("Streetleaf Admin", null);
@@ -115,7 +250,7 @@ describe("ProjectDetailView", () => {
     });
 
     expect(await screen.findByText("3 poles")).toBeTruthy();
-    expect(onLoaded).toHaveBeenCalledWith("North Corridor");
+    expect(onLoaded).toHaveBeenCalledWith(project);
     expect(api.getProject).toHaveBeenCalledWith("c1", "p1");
     expect(screen.getByLabelText("Connected: 2")).toBeTruthy();
     expect(
@@ -125,30 +260,61 @@ describe("ProjectDetailView", () => {
     ).toBeTruthy();
 
     await fireEvent.press(screen.getByRole("button", { name: /^Pole PAS-10/ }));
-    expect(mockPush).toHaveBeenCalledWith({ pathname: "/pole/[poleNumber]", params: { poleNumber: "PAS-10" } });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/(tabs)/(home)/pole/[poleNumber]", params: { poleNumber: "PAS-10" } });
   });
 
-  it("drops the 48h prefix and Connected for customer-scoped viewers", async () => {
+  it("drops the 48h prefix, Connected and Lights working for customer-scoped viewers", async () => {
     await signIn("Customer Owner", "c1");
     const api = fakeApi({ getProject: jest.fn().mockResolvedValue(project) });
     await render(<ProjectDetailView customerId="c1" projectId="p1" viewerScoped />, { wrapper: withSignedInAuth(api) });
 
     expect(await screen.findByRole("button", { name: "Pole PAS-2, Overall status Fault, 2 open issues" })).toBeTruthy();
+    // Just Total lights and Total faults for customer-scoped viewers.
+    expect(screen.getByLabelText("Total lights: 3")).toBeTruthy();
+    expect(screen.getByLabelText("Total faults: 1")).toBeTruthy();
     expect(screen.queryByLabelText(/^Connected:/)).toBeNull();
-    expect(screen.getByLabelText("Lights working: 66.7%")).toBeTruthy();
+    expect(screen.queryByLabelText(/^Lights working:/)).toBeNull();
   });
 
-  it("filters poles by number", async () => {
+  it("has no search box", async () => {
     await signIn("Customer Owner", "c1");
     const api = fakeApi({ getProject: jest.fn().mockResolvedValue(project) });
     await render(<ProjectDetailView customerId="c1" projectId="p1" viewerScoped />, { wrapper: withSignedInAuth(api) });
     await screen.findByText("3 poles");
-
-    await fireEvent.changeText(screen.getByLabelText("Search pole numbers"), "pas-1");
-    expect(screen.getByText("2 poles matching “pas-1”")).toBeTruthy();
-    await fireEvent.changeText(screen.getByLabelText("Search pole numbers"), "zzz");
-    expect(screen.getByText("No poles match that number.")).toBeTruthy();
+    expect(screen.queryByLabelText("Search pole numbers")).toBeNull();
+    // Everything fits on one page, so no pager either.
+    expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
   });
+
+  it("pages poles 10 at a time, with the pager under the Showing line", async () => {
+    await signIn("Streetleaf Admin", null);
+    const manyPoles = Array.from({ length: 57 }, (_, i) => ({
+      id: `id${i + 1}`,
+      poleNumber: `PAS-${i + 1}`,
+      connectedText: "Online",
+      overallStatusText: "OK",
+      lastUpdate: null,
+      openIssues: 0,
+    }));
+    const api = fakeApi({ getProject: jest.fn().mockResolvedValue({ ...project, poles: manyPoles }) });
+    await render(<ProjectDetailView customerId="c1" projectId="p1" viewerScoped={false} />, {
+      wrapper: withSignedInAuth(api),
+    });
+
+    expect(await screen.findByText("Showing 1–10 of 57 poles")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Pole PAS-10,/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Pole PAS-11,/ })).toBeNull();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByText("Showing 11–20 of 57 poles")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Pole PAS-11,/ })).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Page 6" })); // the last page, outside ›
+    expect(screen.getByText("Showing 51–57 of 57 poles")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Pole PAS-57,/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Next page" }).props.accessibilityState.disabled).toBe(true);
+  });
+
 });
 
 describe("HomeTab", () => {

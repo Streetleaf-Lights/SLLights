@@ -60,10 +60,8 @@ function RootStack() {
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={introDone && signedIn}>
+        {/* Every signed-in screen lives inside the tabs (each tab has its own stack). */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: "fade" }} />
-        <Stack.Screen name="customer/[customerId]" options={{ title: "Customer" }} />
-        <Stack.Screen name="project/[customerId]/[projectId]" options={{ title: "Project" }} />
-        <Stack.Screen name="pole/[poleNumber]" options={{ title: "Pole" }} />
       </Stack.Protected>
       <Stack.Protected guard={introDone && !signedIn}>
         <Stack.Screen name="sign-in" options={{ headerShown: false, animation: "fade" }} />

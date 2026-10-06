@@ -1,11 +1,8 @@
-export function getPageWindow(current: number, total: number, size = 5): number[] {
-  let start = Math.max(1, current - Math.floor(size / 2));
-  const end = Math.min(total, start + size - 1);
-  start = Math.max(1, end - size + 1);
-  const pages: number[] = [];
-  for (let p = start; p <= end; p++) pages.push(p);
-  return pages;
-}
+import { getPageWindow } from "@sllights/shared/pagination";
+
+// Page-window logic lives in @sllights/shared (the mobile pager uses it too);
+// re-exported for existing imports.
+export { getPageWindow };
 
 const navButtonClass =
   "flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-[12.5px] font-medium text-[var(--ink-muted)] disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:bg-[var(--surface-sunken)]";

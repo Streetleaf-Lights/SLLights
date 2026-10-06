@@ -49,7 +49,8 @@ export default function ScanScreen() {
       setManualValue("");
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push({
-        pathname: "/pole/[poleNumber]",
+        // The pole route is shared by both tab stacks; name ours so it opens inside Scan.
+        pathname: "/(tabs)/(scan)/pole/[poleNumber]",
         params: { poleNumber: result.poleNumber, ...(scannedValue ? { scanned: scannedValue } : {}) },
       });
     },

@@ -24,19 +24,13 @@ type Project = CustomerOverviewResponse["projects"][number];
 export function CustomerOverviewView({
   customerId,
   viewerScoped,
-  onLoaded,
 }: {
   customerId: string;
   viewerScoped: boolean;
-  onLoaded?: (name: string) => void;
 }) {
   const { api } = useAuth();
   const router = useRouter();
-  const load = useCallback(async () => {
-    const data = await api.getCustomerOverview(customerId);
-    onLoaded?.(data.customer.name);
-    return data;
-  }, [api, customerId, onLoaded]);
+  const load = useCallback(() => api.getCustomerOverview(customerId), [api, customerId]);
   const { state, retry, refresh } = useApiQuery(load);
 
   if (state.status !== "success") return <QueryStatus state={state} onRetry={retry} />;

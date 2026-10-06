@@ -1,18 +1,29 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { isCustomerScoped, isStreetleafStaff } from "@sllights/shared/auth-role";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { canUseFieldTools, isCustomerScoped } from "@sllights/shared/auth-role";
 import { useSignedInUser } from "@/auth/AuthProvider";
+import { tabBarBottomInset } from "@/ui/tabBar";
 import { colors } from "@/ui/theme";
 
+/**
+ * Each tab holds its own stack — (home): list → customer → project → pole;
+ * (scan): scanner → pole — so the bottom nav stays visible on every screen,
+ * each tab keeps its place when you switch, and tapping the current tab
+ * returns to its first screen. The pole screen lives in (home,scan) so both
+ * stacks share it.
+ */
 export default function TabsLayout() {
   const { claims } = useSignedInUser();
-  // Customers land on their own projects; Streetleaf staff on the customer list.
+  const insets = useSafeAreaInsets();
   const homeTitle = isCustomerScoped(claims.role, claims.customerId) ? "Projects" : "Customers";
-  // Scanning is field work: only Streetleaf staff (admins and crew) get the tab.
-  const showScan = isStreetleafStaff(claims.role, claims.customerId);
+  // Scanning is field work: only Streetleaf Admin and Streetleaf Crew get the tab.
+  const showScan = canUseFieldTools(claims.role);
 
   return (
     <Tabs
+      // Trim the gap under the icons; see tabBarBottomInset.
+      safeAreaInsets={{ bottom: tabBarBottomInset(insets.bottom) }}
       screenOptions={{
         tabBarActiveTintColor: colors.accentStrong,
         tabBarInactiveTintColor: colors.inkMuted,
@@ -21,14 +32,16 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="(home)"
         options={{
           title: homeTitle,
+          // The tab's stack draws its own header.
+          headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="scan"
+        name="(scan)"
         options={{
           title: "Scan",
           headerShown: false,
