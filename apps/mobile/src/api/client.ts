@@ -2,10 +2,12 @@ import {
   MOBILE_API,
   mobileCustomerPath,
   mobilePolePath,
+  mobilePoleVitalsPath,
   mobileProjectPath,
   type CustomerListResponse,
   type CustomerOverviewResponse,
   type PoleDetailResponse,
+  type PoleVitalsResponse,
   type ProjectDetailResponse,
   type CreatePoleIssueRequest,
   type MobileSignInResponse,
@@ -143,6 +145,14 @@ export function createApiClient({
 
     getPoleDetail(customerId: string, projectId: string, poleId: string) {
       return request<PoleDetailResponse>(mobilePolePath(customerId, projectId, poleId), { method: "GET", auth: true });
+    },
+
+    /** Hourly vitals for the pole page's chart (days: 1, 2, 7, 14 or 30). */
+    getPoleVitals(customerId: string, projectId: string, poleId: string, days: number) {
+      return request<PoleVitalsResponse>(mobilePoleVitalsPath(customerId, projectId, poleId, days), {
+        method: "GET",
+        auth: true,
+      });
     },
 
     lookupPole(poleNumber: string) {

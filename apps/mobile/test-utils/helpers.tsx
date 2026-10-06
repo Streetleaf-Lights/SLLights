@@ -25,6 +25,7 @@ export function fakeApi(overrides: Partial<Record<keyof ApiClient, jest.Mock>> =
     getCustomerOverview: jest.fn(),
     getProject: jest.fn(),
     getPoleDetail: jest.fn(),
+    getPoleVitals: jest.fn().mockResolvedValue({ vitals: [] }),
     lookupPole: jest.fn().mockResolvedValue({ pole: null }),
     createPoleIssue: jest.fn().mockResolvedValue({ success: true }),
     submitPoleInstall: jest.fn().mockResolvedValue({ success: true }),

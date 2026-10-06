@@ -1,12 +1,13 @@
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 import ProjectScreen from "../app/(tabs)/(home)/project/[customerId]/[projectId]";
 import { sessionStore } from "@/auth/sessionStore";
 import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
 
 const mockSetOptions = jest.fn();
+const mockGoBack = jest.fn();
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ customerId: "c1", projectId: "p1" }),
-  useNavigation: () => ({ setOptions: mockSetOptions }),
+  useNavigation: () => ({ setOptions: mockSetOptions, goBack: mockGoBack }),
   useRouter: () => ({ push: jest.fn() }),
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
@@ -29,7 +30,12 @@ describe("ProjectScreen", () => {
     await render(<ProjectScreen />, { wrapper: withSignedInAuth(api) });
 
     expect(await screen.findByText("North Corridor")).toBeTruthy(); // the name lives in the page header
-    expect(mockSetOptions).toHaveBeenCalledWith({ headerBackTitle: "Coastal Power" });
+    // The screen draws its own back button: "‹ Coastal Power".
+    const options = mockSetOptions.mock.calls.map(([o]) => o).find((o) => o.headerLeft);
+    await render(options.headerLeft());
+    expect(screen.getByText("Coastal Power")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Back to Coastal Power" }));
+    expect(mockGoBack).toHaveBeenCalled();
     expect(mockSetOptions).not.toHaveBeenCalledWith(expect.objectContaining({ title: expect.anything() }));
   });
 });

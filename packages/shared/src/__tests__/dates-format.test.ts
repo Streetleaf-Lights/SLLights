@@ -65,3 +65,20 @@ describe("formatFullAddress", () => {
     expect(formatFullAddress({ address: null, city: null, state: null, zip: null })).toBeNull();
   });
 });
+
+import { formatDate } from "../format";
+
+describe("formatDate", () => {
+  it("keeps only the date, whatever time and offset follow", () => {
+    expect(formatDate("2026-10-01 12:00:00+00:00")).toBe("2026-10-01");
+    expect(formatDate("2026-09-11 16:46:16.000 -04:00")).toBe("2026-09-11");
+    expect(formatDate("2026-09-11T23:59:59Z")).toBe("2026-09-11"); // no timezone shift
+    expect(formatDate("2026-03-02")).toBe("2026-03-02");
+  });
+
+  it("shows a dash when missing or unrecognised", () => {
+    expect(formatDate(null)).toBe("—");
+    expect(formatDate("")).toBe("—");
+    expect(formatDate("yesterday")).toBe("—");
+  });
+});

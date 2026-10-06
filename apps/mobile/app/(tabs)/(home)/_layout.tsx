@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { isCustomerScoped } from "@sllights/shared/auth-role";
 import { useSignedInUser } from "@/auth/AuthProvider";
+import { HeaderBackButton } from "@/ui/HeaderBackButton";
 import { colors } from "@/ui/theme";
 
 /**
@@ -24,15 +25,33 @@ export default function HomeStackLayout() {
     >
       <Stack.Screen name="index" options={{ title: homeTitle }} />
       {/*
-        The customer and project screens show their name in the page itself,
-        so their top bars stay untitled and the back button says where it goes:
-        "‹ Customer Search" here (only staff open a customer, from the search
-        list), and the customer's name on a project (set once it loads).
+        The customer, project and pole screens show their own name in the
+        page, so their top bars stay untitled and the back button says where
+        it goes: "‹ Customer Search" here (only staff open a customer, from
+        the search list); the project and pole screens set theirs to the
+        customer / project name once loaded. Until then, a plain arrow.
       */}
-      <Stack.Screen name="customer/[customerId]" options={{ title: "", headerBackTitle: "Customer Search" }} />
-      <Stack.Screen name="project/[customerId]/[projectId]" options={{ title: "" }} />
-      {/* Untitled too: the pole number is in the page; back names the project (set once it loads). */}
-      <Stack.Screen name="project/[customerId]/[projectId]/pole/[poleId]" options={{ title: "" }} />
+      <Stack.Screen
+        name="customer/[customerId]"
+        options={({ navigation }) => ({
+          title: "",
+          headerLeft: () => <HeaderBackButton label="Customer Search" onPress={() => navigation.goBack()} />,
+        })}
+      />
+      <Stack.Screen
+        name="project/[customerId]/[projectId]"
+        options={({ navigation }) => ({
+          title: "",
+          headerLeft: () => <HeaderBackButton onPress={() => navigation.goBack()} />,
+        })}
+      />
+      <Stack.Screen
+        name="project/[customerId]/[projectId]/pole/[poleId]"
+        options={({ navigation }) => ({
+          title: "",
+          headerLeft: () => <HeaderBackButton onPress={() => navigation.goBack()} />,
+        })}
+      />
       <Stack.Screen name="pole/[poleNumber]" options={{ title: "Pole" }} />
     </Stack>
   );

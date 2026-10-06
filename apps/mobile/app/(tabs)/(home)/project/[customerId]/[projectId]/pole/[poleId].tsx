@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import type { PoleDetailResponse } from "@sllights/shared/api-contract";
 import { PoleDetailView } from "@/pole/PoleDetailView";
+import { HeaderBackButton } from "@/ui/HeaderBackButton";
 
 /**
  * A pole opened from a project's pole list — the web pole page. The pole
@@ -16,7 +17,9 @@ export default function PoleScreen() {
   }>();
   const navigation = useNavigation();
   const showProjectOnBack = useCallback(
-    (data: PoleDetailResponse) => navigation.setOptions({ headerBackTitle: data.project.name }),
+    (data: PoleDetailResponse) => navigation.setOptions({
+        headerLeft: () => <HeaderBackButton label={data.project.name} onPress={() => navigation.goBack()} />,
+      }),
     [navigation],
   );
   return (

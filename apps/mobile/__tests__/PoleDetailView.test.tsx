@@ -39,10 +39,20 @@ describe("PoleDetailView (the web pole page)", () => {
     expect(screen.getByText("48H Overall Status: ")).toBeTruthy();
     // "Fault" twice: the header's 48H Overall Status and the Battery card.
     expect(screen.getAllByText("Fault")).toHaveLength(2);
-    expect(screen.getByText("2026-10-01 12:00")).toBeTruthy();
-    expect(screen.getByText("2026-03-02")).toBeTruthy();
-    expect(screen.getByText("27.95")).toBeTruthy();
-    expect(screen.getByText("-82.46")).toBeTruthy();
+    // Dates in one column (Last Update above Install Date), coordinates in the other (Lat above Long).
+    const dates = within(screen.getByTestId("pole-dates"));
+    const coordinates = within(screen.getByTestId("pole-coordinates"));
+    // (Testing Library trims trailing spaces before matching, hence /:$/.)
+    const text = (children: unknown) => ([] as unknown[]).concat(children).join("").trim();
+    const order = (scope: typeof dates) => scope.getAllByText(/:$/).map((n) => text(n.props.children));
+    expect(order(dates)).toEqual(["Last Update:", "Install Date:"]);
+    expect(order(coordinates)).toEqual(["Lat:", "Long:"]);
+    // Last Update shows the date only.
+    expect(dates.getByText("2026-10-01")).toBeTruthy();
+    expect(screen.queryByText("2026-10-01 12:00")).toBeNull();
+    expect(dates.getByText("2026-03-02")).toBeTruthy();
+    expect(coordinates.getByText("27.95")).toBeTruthy();
+    expect(coordinates.getByText("-82.46")).toBeTruthy();
   });
 
   it("shows the four status cards with the staff metrics", async () => {
@@ -76,23 +86,96 @@ describe("PoleDetailView (the web pole page)", () => {
     expect(within(card("Battery")).getByText("Battery Voltage")).toBeTruthy();
   });
 
-  it("lists issues newest first with web status colours, and reloads after a report", async () => {
-    const { api } = await renderPole(false);
-    const issues = within(card("Issue Entry"));
-    const ids = issues.getAllByText(/^ISS-\d$/).map((n) => n.props.children);
-    expect(ids).toEqual(["ISS-2", "ISS-1"]);
-    expect(issues.getByText("Open").props.style).toEqual(expect.arrayContaining([expect.objectContaining({ color: "#c23b3b" })]));
-    expect(issues.getByText("Closed").props.style).toEqual(expect.arrayContaining([expect.objectContaining({ color: "#1f8a4c" })]));
+  describe("Issue Entry", () => {
+    const issuesCard = () => within(card("Issue Entry"));
 
-    await fireEvent.changeText(issues.getByLabelText("What's wrong?"), "Leaning");
-    await fireEvent.press(issues.getByRole("button", { name: "Report issue" }));
-    await waitFor(() => expect(api.createPoleIssue).toHaveBeenCalledWith({ poleNumber: "PAS-1", status: "Electrical Issue", problemDetails: "Leaning" }));
-    await waitFor(() => expect(api.getPoleDetail).toHaveBeenCalledTimes(2));
-  });
+    it("starts collapsed to 'View or Report Issue' when the pole has issues", async () => {
+      await renderPole(false);
+      expect(issuesCard().getByRole("button", { name: "View or Report Issue" })).toBeTruthy();
+      expect(issuesCard().queryByText("ISS-1")).toBeNull();
+      expect(issuesCard().queryByLabelText("What's wrong?")).toBeNull();
+    });
 
-  it("says so when a pole has no issues", async () => {
-    await renderPole(false, { poleIssues: [], isOpenIssueFault: false });
-    expect(card("Issue Entry")).toHaveAccessibleName("Issue Entry: None");
-    expect(screen.getByText("No issues reported for this pole.")).toBeTruthy();
+    it("says just 'Report Issue' when the pole has none", async () => {
+      await renderPole(false, { poleIssues: [], isOpenIssueFault: false });
+      expect(card("Issue Entry")).toHaveAccessibleName("Issue Entry: None");
+      await fireEvent.press(issuesCard().getByRole("button", { name: "Report Issue" }));
+      expect(issuesCard().getByText("No issues reported for this pole.")).toBeTruthy();
+    });
+
+    it("expands to the form (with the pole number) above the issue list, newest first", async () => {
+      await renderPole(false);
+      await fireEvent.press(issuesCard().getByRole("button", { name: "View or Report Issue" }));
+
+      expect(issuesCard().getByText(/^Report an issue for/)).toBeTruthy();
+      expect(issuesCard().getByText("PAS-1", { exact: true })).toBeTruthy();
+
+      // Form first, then the list: walk the card's tree in order.
+      const order: string[] = [];
+      const walk = (node: unknown): void => {
+        if (!node) return;
+        if (Array.isArray(node)) return node.forEach(walk);
+        if (typeof node === "string") return void order.push(node);
+        const n = node as { props?: { accessibilityLabel?: unknown }; children?: unknown[] };
+        if (typeof n.props?.accessibilityLabel === "string") order.push(n.props.accessibilityLabel);
+        (n.children ?? []).forEach(walk);
+      };
+      walk(screen.toJSON());
+      expect(order.indexOf("Submit issue")).toBeLessThan(order.indexOf("ISS-2"));
+      expect(order.indexOf("ISS-2")).toBeLessThan(order.indexOf("ISS-1")); // newest first
+
+      const issues = issuesCard();
+      expect(issues.getByText("Open").props.style).toEqual(expect.arrayContaining([expect.objectContaining({ color: "#c23b3b" })]));
+      expect(issues.getByText("Closed").props.style).toEqual(expect.arrayContaining([expect.objectContaining({ color: "#1f8a4c" })]));
+    });
+
+    it("disables Submit issue until there's a description", async () => {
+      await renderPole(false);
+      await fireEvent.press(issuesCard().getByRole("button", { name: "View or Report Issue" }));
+      const submit = () => issuesCard().getByRole("button", { name: "Submit issue" });
+      expect(submit().props.accessibilityState.disabled).toBe(true);
+      await fireEvent.changeText(issuesCard().getByLabelText("What's wrong?"), "   ");
+      expect(submit().props.accessibilityState.disabled).toBe(true);
+      await fireEvent.changeText(issuesCard().getByLabelText("What's wrong?"), "Leaning");
+      expect(submit().props.accessibilityState.disabled).toBe(false);
+    });
+
+    it("collapses again on Cancel", async () => {
+      const { api } = await renderPole(false);
+      await fireEvent.press(issuesCard().getByRole("button", { name: "View or Report Issue" }));
+      await fireEvent.press(issuesCard().getByRole("button", { name: "Cancel" }));
+      expect(issuesCard().getByRole("button", { name: "View or Report Issue" })).toBeTruthy();
+      expect(issuesCard().queryByText("ISS-1")).toBeNull();
+      expect(api.createPoleIssue).not.toHaveBeenCalled();
+    });
+
+    it("submits, collapses with a confirmation, and reloads the page", async () => {
+      const { api } = await renderPole(false);
+      await fireEvent.press(issuesCard().getByRole("button", { name: "View or Report Issue" }));
+      await fireEvent.press(issuesCard().getByRole("radio", { name: "Structural Issue" }));
+      await fireEvent.changeText(issuesCard().getByLabelText("What's wrong?"), "  Leaning after storm ");
+      await fireEvent.press(issuesCard().getByRole("button", { name: "Submit issue" }));
+
+      await waitFor(() =>
+        expect(api.createPoleIssue).toHaveBeenCalledWith({
+          poleNumber: "PAS-1",
+          status: "Structural Issue",
+          problemDetails: "Leaning after storm",
+        }),
+      );
+      expect(await screen.findByText("Issue reported.")).toBeTruthy();
+      expect(screen.queryByLabelText("What's wrong?")).toBeNull();
+      await waitFor(() => expect(api.getPoleDetail).toHaveBeenCalledTimes(2));
+    });
+
+    it("stays open with the error if the submit fails", async () => {
+      const { api } = await renderPole(false);
+      (api.createPoleIssue as jest.Mock).mockRejectedValueOnce(new Error("Pole not found in APIM"));
+      await fireEvent.press(issuesCard().getByRole("button", { name: "View or Report Issue" }));
+      await fireEvent.changeText(issuesCard().getByLabelText("What's wrong?"), "Leaning");
+      await fireEvent.press(issuesCard().getByRole("button", { name: "Submit issue" }));
+      expect(await screen.findByText("Pole not found in APIM")).toBeTruthy();
+      expect(screen.getByLabelText("What's wrong?")).toBeTruthy();
+    });
   });
 });

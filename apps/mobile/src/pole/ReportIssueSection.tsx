@@ -11,44 +11,48 @@ import { Button } from "@/ui/Button";
 import { TextField } from "@/ui/TextField";
 import { colors, radius, space, touch, type } from "@/ui/theme";
 
-/** Same submission the web's PoleIssuesLink makes, through the same /api/createpoleissue route. */
+/**
+ * The issue form, as in the web's Pole Issues modal: "Report an issue for
+ * PAS-1", issue type, description, Cancel and Submit issue (disabled until
+ * there's a description). Same /api/createpoleissue route as the web.
+ */
 export function ReportIssueSection({
   poleNumber,
+  onCancel,
   onReported,
 }: {
   poleNumber: string;
-  /** Called after a successful report (the pole screen reloads its issue list). */
-  onReported?: () => void;
+  onCancel: () => void;
+  /** Called after a successful submit (the card collapses and the list reloads). */
+  onReported: () => void;
 }) {
   const { api } = useAuth();
   const [issueType, setIssueType] = useState<PoleIssueType>(POLE_ISSUE_TYPES[0]);
   const [details, setDetails] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const blank = !details.trim();
 
   async function handleSubmit() {
-    if (!details.trim()) {
-      setResult({ tone: "error", message: "Describe the problem before reporting it." });
-      return;
-    }
+    if (blank) return;
     setSubmitting(true);
-    setResult(null);
+    setError(null);
     try {
       await api.createPoleIssue({ poleNumber, status: issueType, problemDetails: details.trim() });
-      setDetails("");
-      setResult({ tone: "success", message: "Issue reported." });
-      onReported?.();
+      onReported();
     } catch (err) {
-      setResult({ tone: "error", message: err instanceof Error ? err.message : "Couldn't report the issue." });
-    } finally {
+      setError(err instanceof Error ? err.message : "Couldn't submit the issue.");
       setSubmitting(false);
     }
   }
 
   return (
-    <View style={styles.section}>
-      <Text style={type.heading}>Report an issue</Text>
-      <View style={styles.segmented} accessibilityRole="radiogroup">
+    <View style={styles.form}>
+      <Text style={styles.intro}>
+        Report an issue for <Text style={styles.poleNumber}>{poleNumber}</Text>
+      </Text>
+
+      <View style={styles.segmented} accessibilityRole="radiogroup" accessibilityLabel="Issue type">
         {POLE_ISSUE_TYPES.map((option) => {
           const selected = option === issueType;
           return (
@@ -64,6 +68,7 @@ export function ReportIssueSection({
           );
         })}
       </View>
+
       <TextField
         label="What's wrong?"
         value={details}
@@ -71,14 +76,31 @@ export function ReportIssueSection({
         multiline
         maxLength={PROBLEM_DETAILS_MAX_LENGTH}
       />
-      {result ? <Banner tone={result.tone} message={result.message} /> : null}
-      <Button label="Report issue" variant="secondary" loading={submitting} onPress={() => void handleSubmit()} />
+
+      {error ? <Banner tone="error" message={error} /> : null}
+
+      <View style={styles.actions}>
+        <View style={styles.action}>
+          <Button label="Cancel" variant="secondary" disabled={submitting} onPress={onCancel} />
+        </View>
+        <View style={styles.action}>
+          <Button label="Submit issue" disabled={blank} loading={submitting} onPress={() => void handleSubmit()} />
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: space.md },
+  form: {
+    gap: space.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: space.md,
+  },
+  intro: { ...type.small, fontSize: 14 },
+  poleNumber: { fontWeight: "700", color: colors.ink },
   segmented: { flexDirection: "row", gap: space.sm },
   segment: {
     flex: 1,
@@ -94,4 +116,6 @@ const styles = StyleSheet.create({
   segmentSelected: { borderColor: colors.accentStrong, backgroundColor: colors.accentSoft },
   segmentText: { fontSize: 15, fontWeight: "600", color: colors.inkMuted, textAlign: "center" },
   segmentTextSelected: { color: colors.accentInk },
+  actions: { flexDirection: "row", gap: space.sm },
+  action: { flex: 1 },
 });

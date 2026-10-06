@@ -7,5 +7,6 @@ export * from "./scan";
 export * from "./status";
 export * from "./pagination";
 export * from "./pole-detail";
+export * from "./vitals-chart";
 export * from "./api-contract";
 export { colors, type ColorToken } from "./theme";

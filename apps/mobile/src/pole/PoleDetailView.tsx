@@ -1,7 +1,7 @@
-import { useCallback, type ReactNode } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useState, type ReactNode } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { PoleDetailResponse } from "@sllights/shared/api-contract";
-import { formatTimestamp } from "@sllights/shared/format";
+import { formatDate, formatTimestamp } from "@sllights/shared/format";
 import {
   formatCoordinate,
   issueStatusTone,
@@ -11,17 +11,20 @@ import {
 import { overallStatusTone } from "@sllights/shared/status";
 import { useApiQuery } from "@/api/useApiQuery";
 import { useAuth } from "@/auth/AuthProvider";
+import { Banner } from "@/ui/Banner";
 import { QueryStatus } from "@/ui/QueryStatus";
 import { toneColor } from "@/ui/status";
-import { colors, radius, space, type } from "@/ui/theme";
+import { colors, radius, space, touch, type } from "@/ui/theme";
 import { ReportIssueSection } from "./ReportIssueSection";
+import { VitalsChart } from "./VitalsChart";
 
 /**
  * The web pole page on mobile: header (project, pole number, last update,
  * install date, coordinates, connection, and the 48H overall status for
  * staff), then the Light / Panel / Battery / Issue Entry status cards. The
  * server shapes the cards for the viewer's role with the same shared rules
- * the web page uses. Vitals history, map and remote control come later.
+ * the web page uses — then the Vitals History chart. Map and remote control
+ * come later.
  */
 export function PoleDetailView({
   customerId,
@@ -77,11 +80,17 @@ export function PoleDetailView({
           />
         ) : null}
 
-        <View style={styles.factGrid}>
-          <Fact label="Last Update" value={formatTimestamp(pole.lastUpdate)} />
-          <Fact label="Install Date" value={pole.installDate ?? "—"} />
-          <Fact label="Lat" value={formatCoordinate(pole.lat)} />
-          <Fact label="Long" value={formatCoordinate(pole.long)} />
+        {/* Two columns, as the web groups them: dates on the left, coordinates on the right. */}
+        <View style={styles.factColumns}>
+          <View style={styles.factColumn} testID="pole-dates">
+            {/* Date only — the time doesn't fit beside the coordinates on a phone. */}
+            <Fact label="Last Update" value={formatDate(pole.lastUpdate)} />
+            <Fact label="Install Date" value={pole.installDate ?? "—"} />
+          </View>
+          <View style={styles.factColumn} testID="pole-coordinates">
+            <Fact label="Lat" value={formatCoordinate(pole.lat)} />
+            <Fact label="Long" value={formatCoordinate(pole.long)} />
+          </View>
         </View>
       </View>
 
@@ -89,13 +98,14 @@ export function PoleDetailView({
       {pole.cards.map((card) => (
         <StatusCard key={card.id} card={card}>
           {card.id === "issues" ? (
-            <>
-              <IssueList issues={pole.issues} />
-              <ReportIssueSection poleNumber={pole.poleNumber} onReported={refresh} />
-            </>
+            <IssueEntry poleNumber={pole.poleNumber} issues={pole.issues} onReported={refresh} />
           ) : null}
         </StatusCard>
       ))}
+
+      {/* After Statuses, as on the web. */}
+      <Text style={styles.section}>Vitals History</Text>
+      <VitalsChart customerId={state.data.customer.id} projectId={project.id} poleId={pole.id} />
 
       {footer}
     </ScrollView>
@@ -128,6 +138,60 @@ function StatusCard({ card, children }: { card: PoleStatusCard; children?: React
         </View>
       ))}
       {children}
+    </View>
+  );
+}
+
+/**
+ * The Issue Entry card's contents, following the web: collapsed to a link —
+ * "View or Report Issue" when the pole has issues, "Report Issue" when it
+ * doesn't — which expands the form (on top) and the issue list (below).
+ * Cancel collapses it again; so does a successful submit, which then
+ * reloads the page so the list and the card's status are current.
+ */
+function IssueEntry({
+  poleNumber,
+  issues,
+  onReported,
+}: {
+  poleNumber: string;
+  issues: PoleDetailResponse["pole"]["issues"];
+  onReported: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reported, setReported] = useState(false);
+
+  if (!open) {
+    return (
+      <View style={styles.issueEntry}>
+        {reported ? <Banner tone="success" message="Issue reported." /> : null}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            setReported(false);
+            setOpen(true);
+          }}
+          hitSlop={6}
+          style={({ pressed }) => [styles.link, pressed && styles.linkPressed]}
+        >
+          <Text style={styles.linkText}>{issues.length > 0 ? "View or Report Issue" : "Report Issue"}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.issueEntry}>
+      <ReportIssueSection
+        poleNumber={poleNumber}
+        onCancel={() => setOpen(false)}
+        onReported={() => {
+          setOpen(false);
+          setReported(true);
+          onReported();
+        }}
+      />
+      <IssueList issues={issues} />
     </View>
   );
 }
@@ -165,8 +229,9 @@ const styles = StyleSheet.create({
   connectionRow: { flexDirection: "row", alignItems: "center", gap: space.xs + 2, marginTop: space.xs },
   dot: { width: 8, height: 8, borderRadius: 4 },
   connection: { fontSize: 15, fontWeight: "700" },
-  factGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: 2, marginTop: space.xs },
-  fact: { width: "50%", fontSize: 13, lineHeight: 19, color: colors.inkMuted },
+  factColumns: { flexDirection: "row", gap: space.md, marginTop: space.xs },
+  factColumn: { flex: 1, gap: 2 },
+  fact: { fontSize: 13, lineHeight: 19, color: colors.inkMuted },
   factLabel: { color: colors.inkFaint },
   strong: { fontWeight: "700" },
   section: {
@@ -193,6 +258,10 @@ const styles = StyleSheet.create({
   metricValue: { fontSize: 14, color: colors.inkMuted, fontVariant: ["tabular-nums"] },
   metricNote: { fontSize: 13, color: colors.inkMuted, textAlign: "right" },
   issues: { gap: space.sm },
+  issueEntry: { gap: space.md },
+  link: { minHeight: touch.minHeight - 12, justifyContent: "center", alignSelf: "flex-start" },
+  linkPressed: { opacity: 0.5 },
+  linkText: { fontSize: 15, fontWeight: "600", color: colors.accentStrong },
   issue: { backgroundColor: colors.bg, borderRadius: radius.md, padding: space.md, gap: 2 },
   issueId: { fontSize: 13, color: colors.inkMuted, fontVariant: ["tabular-nums"] },
   issueStatus: { fontSize: 13, fontWeight: "600" },

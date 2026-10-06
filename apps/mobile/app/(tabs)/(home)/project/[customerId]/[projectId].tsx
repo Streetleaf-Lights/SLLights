@@ -4,6 +4,7 @@ import type { ProjectDetailResponse } from "@sllights/shared/api-contract";
 import { isCustomerScoped } from "@sllights/shared/auth-role";
 import { useSignedInUser } from "@/auth/AuthProvider";
 import { ProjectDetailView } from "@/monitoring/ProjectDetailView";
+import { HeaderBackButton } from "@/ui/HeaderBackButton";
 
 /**
  * A project's stats and poles. The project name is already in the page
@@ -15,7 +16,9 @@ export default function ProjectScreen() {
   const { claims } = useSignedInUser();
   const navigation = useNavigation();
   const showCustomerOnBack = useCallback(
-    (data: ProjectDetailResponse) => navigation.setOptions({ headerBackTitle: data.customer.name }),
+    (data: ProjectDetailResponse) => navigation.setOptions({
+        headerLeft: () => <HeaderBackButton label={data.customer.name} onPress={() => navigation.goBack()} />,
+      }),
     [navigation],
   );
   return (

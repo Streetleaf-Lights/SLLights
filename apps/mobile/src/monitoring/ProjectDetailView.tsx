@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import type { ProjectDetailResponse, ProjectPoleRow } from "@sllights/shared/api-contract";
-import { formatTimestamp } from "@sllights/shared/format";
 import { paginate } from "@sllights/shared/pagination";
 import { connectedTone, overallStatusTone } from "@sllights/shared/status";
 import { useApiQuery } from "@/api/useApiQuery";
@@ -151,7 +150,6 @@ function PoleRow({
           </Text>
         )}
       </View>
-      {pole.lastUpdate ? <Text style={type.small}>Updated {formatTimestamp(pole.lastUpdate)}</Text> : null}
     </ListRow>
   );
 }

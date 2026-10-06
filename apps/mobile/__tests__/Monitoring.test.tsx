@@ -259,6 +259,9 @@ describe("ProjectDetailView", () => {
       }),
     ).toBeTruthy();
 
+    // Rows show status and connection only — no "Updated …" line.
+    expect(screen.queryByText(/^Updated /)).toBeNull();
+
     await fireEvent.press(screen.getByRole("button", { name: /^Pole PAS-10/ }));
     expect(mockPush).toHaveBeenCalledWith({
       pathname: "/project/[customerId]/[projectId]/pole/[poleId]",

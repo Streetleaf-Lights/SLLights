@@ -1,5 +1,5 @@
 import type { PoleStatusCard, ToneText } from "./pole-detail";
-import type { AuthUser, PoleIssue, PoleSummary } from "./types";
+import type { AuthUser, PoleIssue, PoleSummary, PoleVitalPeriod } from "./types";
 
 /**
  * The contract between the mobile app and the web app's /api/mobile/*
@@ -62,6 +62,17 @@ export const mobileProjectPath = (customerId: string, projectId: string) =>
 
 export const mobilePolePath = (customerId: string, projectId: string, poleId: string) =>
   `${mobileProjectPath(customerId, projectId)}/poles/${encodeURIComponent(poleId)}`;
+
+export const mobilePoleVitalsPath = (customerId: string, projectId: string, poleId: string, days: number) =>
+  `${mobilePolePath(customerId, projectId, poleId)}/vitals?days=${days}`;
+
+/**
+ * GET …/poles/{poleId}/vitals?days=1|2|7|14|30 — hourly vitals for the
+ * pole page's chart. Same scoping as the pole route.
+ */
+export interface PoleVitalsResponse {
+  vitals: PoleVitalPeriod[];
+}
 
 /** GET /api/mobile/customers — Streetleaf staff only (403 for customer-scoped users). Active customers, by name. */
 export interface CustomerListResponse {

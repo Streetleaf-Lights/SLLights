@@ -85,3 +85,14 @@ export function formatFullAddress(customer: {
   const parts = [customer.address, cityStateZip].filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : null;
 }
+
+/**
+ * Just the date from an APIM timestamp: "2026-10-01 12:00:00+00:00" ->
+ * "2026-10-01". Read from the string's own digits (the same wall-clock
+ * convention as formatTimestamp), so no timezone shift. "—" when missing
+ * or not in that shape.
+ */
+export function formatDate(value: string | null | undefined): string {
+  const match = value?.trim().match(/^(\d{4}-\d{2}-\d{2})(?:[ T]|$)/);
+  return match ? match[1] : "—";
+}
