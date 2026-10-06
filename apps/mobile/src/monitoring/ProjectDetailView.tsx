@@ -97,7 +97,10 @@ export function ProjectDetailView({
         <PoleRow
           pole={item}
           viewerScoped={viewerScoped}
-          onPress={() => router.push({ pathname: "/(tabs)/(home)/pole/[poleNumber]", params: { poleNumber: item.poleNumber } })}
+          onPress={() => router.push({
+              pathname: "/project/[customerId]/[projectId]/pole/[poleId]",
+              params: { customerId: customer.id, projectId: project.id, poleId: item.id },
+            })}
         />
       )}
     />

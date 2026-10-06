@@ -1,4 +1,5 @@
-import type { AuthUser, PoleSummary } from "./types";
+import type { PoleStatusCard, ToneText } from "./pole-detail";
+import type { AuthUser, PoleIssue, PoleSummary } from "./types";
 
 /**
  * The contract between the mobile app and the web app's /api/mobile/*
@@ -59,6 +60,9 @@ export const mobileCustomerPath = (customerId: string) =>
 export const mobileProjectPath = (customerId: string, projectId: string) =>
   `${mobileCustomerPath(customerId)}/projects/${encodeURIComponent(projectId)}`;
 
+export const mobilePolePath = (customerId: string, projectId: string, poleId: string) =>
+  `${mobileProjectPath(customerId, projectId)}/poles/${encodeURIComponent(poleId)}`;
+
 /** GET /api/mobile/customers — Streetleaf staff only (403 for customer-scoped users). Active customers, by name. */
 export interface CustomerListResponse {
   customers: { id: string; name: string }[];
@@ -106,6 +110,31 @@ export interface ProjectDetailResponse {
   project: { id: string; name: string; active: boolean } & LightStats;
   /** Sorted by pole number, numeric-aware ("PAS-2" before "PAS-10"). */
   poles: ProjectPoleRow[];
+}
+
+/**
+ * GET /api/mobile/customers/{customerId}/projects/{projectId}/poles/{poleId}
+ * — the web pole page's content, already shaped for the viewer's role by the
+ * shared buildPoleStatusCards, so customer-scoped viewers receive only what
+ * the web shows them. Same scoping as the project route (404 otherwise).
+ */
+export interface PoleDetailResponse {
+  customer: { id: string; name: string };
+  project: { id: string; name: string; active: boolean };
+  pole: {
+    id: string;
+    poleNumber: string;
+    active: boolean;
+    lastUpdate: string | null;
+    installDate: string | null;
+    lat: number | null;
+    long: number | null;
+    connection: ToneText;
+    /** The header's "48H Overall Status" — staff only; absent for customer-scoped viewers. */
+    overallStatusText?: string | null;
+    cards: PoleStatusCard[];
+    issues: PoleIssue[];
+  };
 }
 
 /** Whether a PoleIssue counts as open (APIM's status casing/whitespace varies). */

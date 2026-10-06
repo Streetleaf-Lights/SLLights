@@ -113,11 +113,13 @@ describe("monitoring calls", () => {
     await api.listCustomers();
     await api.getCustomerOverview("c 1");
     await api.getProject("c1", "p/1");
+    await api.getPoleDetail("c1", "p1", "pole 1");
 
     expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
       "https://x.test/api/mobile/customers",
       "https://x.test/api/mobile/customers/c%201",
       "https://x.test/api/mobile/customers/c1/projects/p%2F1",
+      "https://x.test/api/mobile/customers/c1/projects/p1/poles/pole%201",
     ]);
     for (const [, init] of fetchImpl.mock.calls) expect(init.headers.Authorization).toBe("Bearer jwt");
   });

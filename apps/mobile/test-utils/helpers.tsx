@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 import type { ApiClient } from "@/api/client";
 import { AuthProvider, useAuth } from "@/auth/AuthProvider";
 
+import type { PoleDetailResponse } from "@sllights/shared/api-contract";
+import { buildPoleStatusCards, connectionStatusTone } from "@sllights/shared/pole-detail";
+import type { PoleVital } from "@sllights/shared/types";
+
 /** Unsigned JWT; the app only decodes tokens, never verifies them. */
 export function makeToken(payload: Record<string, unknown>): string {
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -20,6 +24,7 @@ export function fakeApi(overrides: Partial<Record<keyof ApiClient, jest.Mock>> =
     listCustomers: jest.fn().mockResolvedValue({ customers: [] }),
     getCustomerOverview: jest.fn(),
     getProject: jest.fn(),
+    getPoleDetail: jest.fn(),
     lookupPole: jest.fn().mockResolvedValue({ pole: null }),
     createPoleIssue: jest.fn().mockResolvedValue({ success: true }),
     submitPoleInstall: jest.fn().mockResolvedValue({ success: true }),
@@ -45,5 +50,46 @@ export function withSignedInAuth(api: ApiClient) {
         <Gate>{children}</Gate>
       </AuthProvider>
     );
+  };
+}
+
+/** A realistic dual-channel pole, overridable per test. */
+export function makePoleVital(overrides: Partial<PoleVital> = {}): PoleVital {
+  return {
+    id: "pole1", poleNumber: "PAS-1", locationId: "L1", active: true, isOnline: true,
+    installDate: "2026-03-02", lat: 27.95, long: -82.46, lastUpdate: "2026-10-01 12:00:00+00:00",
+    batteryVoltage1: 12.8, batteryVoltage2: 12.7, lampPower1: 40, lampPower2: 38,
+    batteryElecCurrent1: 1.1, batteryElecCurrent2: 1.0, solarBoardVoltage: 18.2, solarBoardElecCurrent: 2.3,
+    isLedFault: false, isBatteryFault: true, isPanelFault: false, isOpenIssueFault: true, isPoleFault: true,
+    avgBatteryPercentage: 80, avgPanelPercentage: 70, avgLightPercentage: 95,
+    sunsetTime: "2026-08-28 19:54:31.130526-04:00", lightStatusText: "OFF", panelStatusText: "Charging",
+    panelIdleReason: null, batteryStatusText: "Low", electricCurrentAverage: 55,
+    connectedText: "Online", overallStatusText: "Fault",
+    poleIssues: [
+      { issueId: "ISS-1", status: "Closed", poleStatus: "", dateReported: "2026-09-01 08:00:00.000 -04:00", problemDetails: "Old one" },
+      { issueId: "ISS-2", status: "Open", poleStatus: "", dateReported: "2026-09-30 08:00:00.000 -04:00", problemDetails: "Flickering" },
+    ],
+    ...overrides,
+  } as PoleVital;
+}
+
+/** What the pole route sends: built with the same shared rules the server uses. */
+export function makePoleDetail(viewerScoped: boolean, pole: PoleVital = makePoleVital()): PoleDetailResponse {
+  return {
+    customer: { id: "c1", name: "Coastal Power" },
+    project: { id: "p1", name: "North Corridor", active: true },
+    pole: {
+      id: pole.id,
+      poleNumber: pole.poleNumber,
+      active: pole.active,
+      lastUpdate: pole.lastUpdate,
+      installDate: pole.installDate,
+      lat: pole.lat,
+      long: pole.long,
+      connection: connectionStatusTone(pole.isOnline, pole.lastUpdate),
+      ...(viewerScoped ? {} : { overallStatusText: pole.overallStatusText }),
+      cards: buildPoleStatusCards(pole, viewerScoped),
+      issues: pole.poleIssues,
+    },
   };
 }

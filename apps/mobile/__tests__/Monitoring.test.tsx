@@ -260,7 +260,10 @@ describe("ProjectDetailView", () => {
     ).toBeTruthy();
 
     await fireEvent.press(screen.getByRole("button", { name: /^Pole PAS-10/ }));
-    expect(mockPush).toHaveBeenCalledWith({ pathname: "/(tabs)/(home)/pole/[poleNumber]", params: { poleNumber: "PAS-10" } });
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/project/[customerId]/[projectId]/pole/[poleId]",
+      params: { customerId: "c1", projectId: "p1", poleId: "c" },
+    });
   });
 
   it("drops the 48h prefix, Connected and Lights working for customer-scoped viewers", async () => {

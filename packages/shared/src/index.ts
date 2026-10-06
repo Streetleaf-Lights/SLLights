@@ -6,5 +6,6 @@ export * from "./format";
 export * from "./scan";
 export * from "./status";
 export * from "./pagination";
+export * from "./pole-detail";
 export * from "./api-contract";
 export { colors, type ColorToken } from "./theme";

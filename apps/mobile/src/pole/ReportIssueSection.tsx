@@ -12,7 +12,14 @@ import { TextField } from "@/ui/TextField";
 import { colors, radius, space, touch, type } from "@/ui/theme";
 
 /** Same submission the web's PoleIssuesLink makes, through the same /api/createpoleissue route. */
-export function ReportIssueSection({ poleNumber }: { poleNumber: string }) {
+export function ReportIssueSection({
+  poleNumber,
+  onReported,
+}: {
+  poleNumber: string;
+  /** Called after a successful report (the pole screen reloads its issue list). */
+  onReported?: () => void;
+}) {
   const { api } = useAuth();
   const [issueType, setIssueType] = useState<PoleIssueType>(POLE_ISSUE_TYPES[0]);
   const [details, setDetails] = useState("");
@@ -30,6 +37,7 @@ export function ReportIssueSection({ poleNumber }: { poleNumber: string }) {
       await api.createPoleIssue({ poleNumber, status: issueType, problemDetails: details.trim() });
       setDetails("");
       setResult({ tone: "success", message: "Issue reported." });
+      onReported?.();
     } catch (err) {
       setResult({ tone: "error", message: err instanceof Error ? err.message : "Couldn't report the issue." });
     } finally {

@@ -2,11 +2,13 @@ import {
   isOpenIssue,
   type CustomerOverviewResponse,
   type LightStats,
+  type PoleDetailResponse,
   type ProjectDetailResponse,
 } from "@sllights/shared/api-contract";
+import { buildPoleStatusCards, connectionStatusTone } from "@sllights/shared/pole-detail";
 import { isCustomerScoped } from "@sllights/shared/auth-role";
 import { formatFullAddress } from "@sllights/shared/format";
-import type { Customer, CustomerPoleVitals, Project, ProjectVitals, SessionUser } from "@sllights/shared/types";
+import type { Customer, CustomerPoleVitals, PoleVital, Project, ProjectVitals, SessionUser } from "@sllights/shared/types";
 
 /**
  * Data scoping for the mobile monitoring routes — the same rule proxy.ts
@@ -73,5 +75,36 @@ export function toProjectDetail(
     customer: { id: customer.id, name: customer.name },
     project: { id: project.id, name: project.name, active: project.active, ...lightStats(projectVitals) },
     poles,
+  };
+}
+
+/**
+ * The web pole page's content for one pole, shaped for the viewer: status
+ * cards from the same shared builder the web page uses, and the 48H overall
+ * status only for staff. Raw telemetry fields aren't passed through, so a
+ * customer-scoped viewer receives nothing the web wouldn't show them.
+ */
+export function toPoleDetail(
+  customer: Customer,
+  project: Project,
+  pole: PoleVital,
+  viewerScoped: boolean,
+): PoleDetailResponse {
+  return {
+    customer: { id: customer.id, name: customer.name },
+    project: { id: project.id, name: project.name, active: project.active },
+    pole: {
+      id: pole.id,
+      poleNumber: pole.poleNumber,
+      active: pole.active,
+      lastUpdate: pole.lastUpdate,
+      installDate: pole.installDate,
+      lat: pole.lat,
+      long: pole.long,
+      connection: connectionStatusTone(pole.isOnline, pole.lastUpdate),
+      ...(viewerScoped ? {} : { overallStatusText: pole.overallStatusText }),
+      cards: buildPoleStatusCards(pole, viewerScoped),
+      issues: pole.poleIssues ?? [],
+    },
   };
 }

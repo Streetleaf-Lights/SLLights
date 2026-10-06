@@ -18,6 +18,7 @@ const EXPECTED = [
   "(tabs)/(home)/index.tsx",
   "(tabs)/(home)/customer/[customerId].tsx",
   "(tabs)/(home)/project/[customerId]/[projectId].tsx",
+  "(tabs)/(home)/project/[customerId]/[projectId]/pole/[poleId].tsx",
   "(tabs)/(scan)/_layout.tsx",
   "(tabs)/(scan)/scan.tsx",
   "(tabs)/(home,scan)/pole/[poleNumber].tsx",

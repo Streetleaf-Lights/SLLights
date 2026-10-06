@@ -7,11 +7,12 @@ import * as HomeLayout from "../app/(tabs)/(home)/_layout";
 import * as HomeIndex from "../app/(tabs)/(home)/index";
 import * as Customer from "../app/(tabs)/(home)/customer/[customerId]";
 import * as Project from "../app/(tabs)/(home)/project/[customerId]/[projectId]";
+import * as ProjectPole from "../app/(tabs)/(home)/project/[customerId]/[projectId]/pole/[poleId]";
 import * as ScanLayout from "../app/(tabs)/(scan)/_layout";
 import * as Scan from "../app/(tabs)/(scan)/scan";
 import * as Pole from "../app/(tabs)/(home,scan)/pole/[poleNumber]";
 import { sessionStore } from "@/auth/sessionStore";
-import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
+import { fakeApi, futureExp, makePoleDetail, makeToken, withSignedInAuth } from "../test-utils/helpers";
 
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("expo-camera", () => {
@@ -48,6 +49,7 @@ const routes = {
   "(tabs)/(home)/index": HomeIndex,
   "(tabs)/(home)/customer/[customerId]": Customer,
   "(tabs)/(home)/project/[customerId]/[projectId]": Project,
+  "(tabs)/(home)/project/[customerId]/[projectId]/pole/[poleId]": ProjectPole,
   "(tabs)/(scan)/_layout": ScanLayout,
   "(tabs)/(scan)/scan": Scan,
   "(tabs)/(home,scan)/pole/[poleNumber]": Pole,
@@ -74,6 +76,8 @@ function api() {
     listCustomers: jest.fn().mockResolvedValue({ customers: [{ id: "c1", name: "Coastal Power" }] }),
     getCustomerOverview: jest.fn().mockResolvedValue(overview),
     getProject: jest.fn().mockResolvedValue(project),
+    getPoleDetail: jest.fn().mockResolvedValue(makePoleDetail(false)),
+    lookupPole: jest.fn().mockResolvedValue({ pole: { id: "pole1", poleNumber: "PAS-9", customerId: "c1", projectId: "p1" } }),
   });
 }
 
@@ -98,8 +102,9 @@ describe("navigation inside the tabs", () => {
     await expectTabBar("Customers", "Account");
 
     await fireEvent.press(await screen.findByRole("button", { name: /^Pole PAS-1/ }));
-    await waitFor(() => expect(router.getPathname()).toBe("/pole/PAS-1"));
-    expect(router.getSegments()).toEqual(["(tabs)", "(home)", "pole", "[poleNumber]"]);
+    await waitFor(() => expect(router.getPathname()).toBe("/project/c1/p1/pole/a"));
+    expect(router.getSegments()).toEqual(["(tabs)", "(home)", "project", "[customerId]", "[projectId]", "pole", "[poleId]"]);
+    expect(await screen.findByLabelText(/^Battery: /)).toBeTruthy(); // the web-style pole page
     await expectTabBar("Customers", "Scan", "Account");
   });
 

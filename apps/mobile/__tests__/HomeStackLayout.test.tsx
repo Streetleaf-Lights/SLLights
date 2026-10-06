@@ -36,6 +36,7 @@ describe("home tab stack", () => {
     await render(<HomeStackLayout />, { wrapper: withSignedInAuth(fakeApi()) });
     await screen.findByTestId("screen-index");
     expect(optionsOf("project/[customerId]/[projectId]")).toEqual({ title: "" });
+    expect(optionsOf("project/[customerId]/[projectId]/pole/[poleId]")).toEqual({ title: "" });
   });
 
   it.each([

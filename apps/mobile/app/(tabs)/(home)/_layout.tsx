@@ -31,6 +31,8 @@ export default function HomeStackLayout() {
       */}
       <Stack.Screen name="customer/[customerId]" options={{ title: "", headerBackTitle: "Customer Search" }} />
       <Stack.Screen name="project/[customerId]/[projectId]" options={{ title: "" }} />
+      {/* Untitled too: the pole number is in the page; back names the project (set once it loads). */}
+      <Stack.Screen name="project/[customerId]/[projectId]/pole/[poleId]" options={{ title: "" }} />
       <Stack.Screen name="pole/[poleNumber]" options={{ title: "Pole" }} />
     </Stack>
   );

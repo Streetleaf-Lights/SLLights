@@ -1,9 +1,11 @@
 import {
   MOBILE_API,
   mobileCustomerPath,
+  mobilePolePath,
   mobileProjectPath,
   type CustomerListResponse,
   type CustomerOverviewResponse,
+  type PoleDetailResponse,
   type ProjectDetailResponse,
   type CreatePoleIssueRequest,
   type MobileSignInResponse,
@@ -137,6 +139,10 @@ export function createApiClient({
 
     getProject(customerId: string, projectId: string) {
       return request<ProjectDetailResponse>(mobileProjectPath(customerId, projectId), { method: "GET", auth: true });
+    },
+
+    getPoleDetail(customerId: string, projectId: string, poleId: string) {
+      return request<PoleDetailResponse>(mobilePolePath(customerId, projectId, poleId), { method: "GET", auth: true });
     },
 
     lookupPole(poleNumber: string) {
