@@ -5,7 +5,7 @@ import {
   type PoleDetailResponse,
   type ProjectDetailResponse,
 } from "@sllights/shared/api-contract";
-import { findLeadsunProduct } from "@sllights/shared/leadsun";
+import { findLeadsunProduct, hasLeadsunProducts } from "@sllights/shared/leadsun";
 import { buildPoleStatusCards, connectionStatusTone } from "@sllights/shared/pole-detail";
 import { isCustomerScoped } from "@sllights/shared/auth-role";
 import { formatFullAddress } from "@sllights/shared/format";
@@ -78,6 +78,7 @@ export function toProjectDetail(
     customer: { id: customer.id, name: customer.name },
     project: { id: project.id, name: project.name, active: project.active, ...lightStats(projectVitals) },
     poles,
+    hasRemoteControl: hasLeadsunProducts(project.leadsunProject),
   };
 }
 

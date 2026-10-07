@@ -91,7 +91,10 @@ describe("PoleDetailView (the web pole page)", () => {
       }),
     });
     await render(<PoleDetailView customerId="c1" projectId="p1" poleId="pole1" />, { wrapper: withSignedInAuth(api) });
-    await fireEvent.press(await screen.findByRole("button", { name: "Remote Control" }));
+    const pill = await screen.findByRole("button", { name: "Remote Control" });
+    // A small pill sharing the top row with the project name, not a full-width button.
+    expect(within(screen.getByText("North Corridor").parent!).getByRole("button", { name: "Remote Control" })).toBeTruthy();
+    await fireEvent.press(pill);
     expect(await screen.findByText("LOC-1")).toBeTruthy();
     expect(api.getPoleRemote).toHaveBeenCalledWith("c1", "p1", "pole1");
   });

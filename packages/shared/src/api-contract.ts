@@ -100,6 +100,34 @@ export interface PoleRemoteResponse {
   } | null;
 }
 
+export const mobileProjectRemotePath = (customerId: string, projectId: string) =>
+  `${mobileProjectPath(customerId, projectId)}/remote`;
+
+/** One Leadsun light in a project's remote-control breakdown. */
+export interface RemoteLight {
+  poleNumber: string;
+  /** Leadsun ProductName (what commands name). */
+  productName: string;
+  /** Leadsun device id (what live status is keyed by). */
+  providedProductId: string;
+  lamp: LampState;
+}
+
+/**
+ * GET …/projects/{projectId}/remote — the project's Leadsun gateways and
+ * lights with live ON/OFF state (null when the project has no Leadsun
+ * lights). POST it a ProjectLightCommand to switch the whole project, one
+ * gateway, or chosen lights; the server checks every gateway and light
+ * named belongs to this project.
+ */
+export interface ProjectRemoteResponse {
+  remote: {
+    projectName: string;
+    gateways: { name: string; code: string; lights: RemoteLight[] }[];
+    statusError: string | null;
+  } | null;
+}
+
 export interface LightCommandResponse {
   success: true;
   message: string;
@@ -155,6 +183,8 @@ export interface ProjectDetailResponse {
   project: { id: string; name: string; active: boolean } & LightStats;
   /** Sorted by pole number, numeric-aware ("PAS-2" before "PAS-10"). */
   poles: ProjectPoleRow[];
+  /** True when the project has Leadsun lights — the web shows its Remote Control button then. */
+  hasRemoteControl: boolean;
 }
 
 /**

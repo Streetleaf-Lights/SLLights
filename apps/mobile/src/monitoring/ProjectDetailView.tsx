@@ -8,6 +8,8 @@ import { useApiQuery } from "@/api/useApiQuery";
 import { useAuth } from "@/auth/AuthProvider";
 import { count } from "@/ui/format";
 import { LocationMap } from "@/location/LocationMap";
+import { ProjectRemotePanel } from "@/remote/ProjectRemotePanel";
+import { PillButton } from "@/ui/PillButton";
 import { ListRow } from "@/ui/ListRow";
 import { Pagination } from "@/ui/Pagination";
 import { QueryStatus } from "@/ui/QueryStatus";
@@ -35,6 +37,7 @@ export function ProjectDetailView({
   const { api } = useAuth();
   const router = useRouter();
   const [page, setPage] = useState(1);
+  const [remoteOpen, setRemoteOpen] = useState(false);
   const listRef = useRef<FlatList<ProjectPoleRow>>(null);
   const load = useCallback(async () => {
     const data = await api.getProject(customerId, projectId);
@@ -67,13 +70,22 @@ export function ProjectDetailView({
       ListHeaderComponent={
         <View style={styles.header}>
           <View style={styles.titleBlock}>
-            <Text style={styles.customer}>{customer.name}</Text>
+            <View style={styles.titleTop}>
+              <Text style={[styles.customer, styles.flex]}>{customer.name}</Text>
+              {/* As on the web: Remote Control when the project has Leadsun lights — small, top right. */}
+              {state.data.hasRemoteControl ? (
+                <PillButton label="Remote Control" icon="bulb-outline" onPress={() => setRemoteOpen((open) => !open)} />
+              ) : null}
+            </View>
             <Text style={type.title} accessibilityRole="header">
               {project.name}
             </Text>
             {project.active ? null : <Text style={type.small}>Inactive project</Text>}
           </View>
           {/* Customer-scoped viewers get Total lights and Total faults only (no Connected, as on the web). */}
+          {state.data.hasRemoteControl && remoteOpen ? (
+            <ProjectRemotePanel customerId={customerId} projectId={projectId} onClose={() => setRemoteOpen(false)} />
+          ) : null}
           <StatRow
             stats={[
               { label: "Total lights", value: count(project.totalLights) },
@@ -167,6 +179,8 @@ const styles = StyleSheet.create({
   content: { padding: space.lg, paddingBottom: space.xxl },
   header: { gap: space.md, marginBottom: space.md },
   titleBlock: { gap: 2 },
+  titleTop: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  flex: { flex: 1 },
   customer: { fontSize: 14, fontWeight: "600", color: colors.accentStrong },
   section: {
     marginTop: space.xs,

@@ -57,3 +57,49 @@ export function lightButtonLabel(state: { submitting: boolean; cooldownRemaining
   if (state.cooldownRemaining > 0) return `Wait ${state.cooldownRemaining}s`;
   return state.brightness === 0 ? "TURN OFF" : "GO!";
 }
+
+/**
+ * What a project-level command switches — the web modal's three scopes:
+ * the whole project ("Project Control"), one gateway ("Gateway Control"),
+ * or chosen lights (a single light's "Control", or a project/gateway
+ * command with some poles deselected). Lights are named by Leadsun
+ * ProductName, as the web sends them.
+ */
+export type ProjectLightTarget =
+  | { kind: "project" }
+  | { kind: "gateway"; gatewayCode: string }
+  | { kind: "lights"; productNames: string[] };
+
+export interface ProjectLightCommand extends LightCommand {
+  target: ProjectLightTarget;
+}
+
+/**
+ * Shape check for an untrusted project command (brightness/time as for a
+ * single pole, plus one well-formed target). The server must still check
+ * that the gateway/lights belong to the project — this only checks shape.
+ */
+export function validateProjectLightCommand(
+  body: unknown,
+): { ok: true; value: ProjectLightCommand } | { ok: false; error: string } {
+  const base = validateLightCommand(body);
+  if (!base.ok) return base;
+  const target = (body as { target?: unknown }).target as Record<string, unknown> | undefined;
+  if (!target || typeof target !== "object") return { ok: false, error: "A target is required." };
+
+  if (target.kind === "project") return { ok: true, value: { ...base.value, target: { kind: "project" } } };
+  if (target.kind === "gateway") {
+    if (typeof target.gatewayCode !== "string" || !target.gatewayCode.trim()) {
+      return { ok: false, error: "gatewayCode is required." };
+    }
+    return { ok: true, value: { ...base.value, target: { kind: "gateway", gatewayCode: target.gatewayCode } } };
+  }
+  if (target.kind === "lights") {
+    const names = target.productNames;
+    if (!Array.isArray(names) || names.length === 0 || !names.every((n) => typeof n === "string" && n.trim())) {
+      return { ok: false, error: "productNames must be a non-empty list." };
+    }
+    return { ok: true, value: { ...base.value, target: { kind: "lights", productNames: [...new Set(names as string[])] } } };
+  }
+  return { ok: false, error: "Unknown target." };
+}

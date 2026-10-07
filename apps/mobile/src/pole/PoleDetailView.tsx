@@ -12,7 +12,7 @@ import { overallStatusTone } from "@sllights/shared/status";
 import { useApiQuery } from "@/api/useApiQuery";
 import { useAuth } from "@/auth/AuthProvider";
 import { Banner } from "@/ui/Banner";
-import { Button } from "@/ui/Button";
+import { PillButton } from "@/ui/PillButton";
 import { QueryStatus } from "@/ui/QueryStatus";
 import { toneColor } from "@/ui/status";
 import { colors, radius, space, touch, type } from "@/ui/theme";
@@ -62,10 +62,16 @@ export function PoleDetailView({
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} tintColor={colors.accentStrong} />}
     >
       <View style={styles.header}>
-        <Text style={styles.project}>
-          {project.name}
-          {project.active ? "" : "  · Inactive"}
-        </Text>
+        <View style={styles.headerTop}>
+          <Text style={[styles.project, styles.flex]}>
+            {project.name}
+            {project.active ? "" : "  · Inactive"}
+          </Text>
+          {/* As on the web: Remote Control when the pole has a Leadsun product — small, top right. */}
+          {pole.hasRemoteControl ? (
+            <PillButton label="Remote Control" icon="bulb-outline" onPress={() => setRemoteOpen((open) => !open)} />
+          ) : null}
+        </View>
         <Text style={styles.poleNumber} accessibilityRole="header">
           {pole.poleNumber}
           {pole.active ? "" : "  · Inactive"}
@@ -96,12 +102,6 @@ export function PoleDetailView({
             <Fact label="Long" value={formatCoordinate(pole.long)} />
           </View>
         </View>
-        {/* As on the web: a Remote Control button when the pole has a Leadsun product. */}
-        {pole.hasRemoteControl && !remoteOpen ? (
-          <View style={styles.remoteButton}>
-            <Button label="Remote Control" variant="secondary" onPress={() => setRemoteOpen(true)} />
-          </View>
-        ) : null}
       </View>
 
       {pole.hasRemoteControl && remoteOpen ? (
@@ -248,7 +248,8 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   project: { fontSize: 14, fontWeight: "600", color: colors.accent },
-  remoteButton: { marginTop: space.md },
+  headerTop: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  flex: { flex: 1 },
   poleNumber: { fontSize: 24, fontWeight: "700", letterSpacing: 0.5, color: colors.ink, fontVariant: ["tabular-nums"] },
   connectionRow: { flexDirection: "row", alignItems: "center", gap: space.xs + 2, marginTop: space.xs },
   dot: { width: 8, height: 8, borderRadius: 4 },

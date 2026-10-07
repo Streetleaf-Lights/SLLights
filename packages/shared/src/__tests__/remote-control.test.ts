@@ -43,3 +43,34 @@ describe("labels and expectations (as on the web)", () => {
     expect(expectedLampState(0)).toBe("off");
   });
 });
+
+import { validateProjectLightCommand } from "../remote-control";
+
+describe("validateProjectLightCommand", () => {
+  const base = { brightness: 40, time: 30 };
+
+  it("accepts the three web scopes", () => {
+    expect(validateProjectLightCommand({ ...base, target: { kind: "project" } })).toMatchObject({ ok: true, value: { target: { kind: "project" } } });
+    expect(validateProjectLightCommand({ ...base, target: { kind: "gateway", gatewayCode: "GW-A" } })).toMatchObject({ ok: true });
+    expect(validateProjectLightCommand({ ...base, target: { kind: "lights", productNames: ["L1", "L1", "L2"] } })).toEqual({
+      ok: true,
+      value: { ...base, target: { kind: "lights", productNames: ["L1", "L2"] } },
+    });
+  });
+
+  it("drops anything extra in the target", () => {
+    const r = validateProjectLightCommand({ ...base, target: { kind: "project", projectId: "someone-elses" } });
+    expect(r).toEqual({ ok: true, value: { ...base, target: { kind: "project" } } });
+  });
+
+  it.each([
+    ["no target", { ...base }],
+    ["unknown kind", { ...base, target: { kind: "everything" } }],
+    ["gateway without code", { ...base, target: { kind: "gateway" } }],
+    ["empty lights", { ...base, target: { kind: "lights", productNames: [] } }],
+    ["non-string light", { ...base, target: { kind: "lights", productNames: [3] } }],
+    ["bad brightness", { brightness: 500, time: 30, target: { kind: "project" } }],
+  ])("rejects %s", (_l, body) => {
+    expect(validateProjectLightCommand(body)).toMatchObject({ ok: false });
+  });
+});

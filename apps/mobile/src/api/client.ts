@@ -3,6 +3,7 @@ import {
   mobileCustomerPath,
   mobilePolePath,
   mobilePoleRemotePath,
+  mobileProjectRemotePath,
   mobilePoleVitalsPath,
   mobileProjectPath,
   type CustomerListResponse,
@@ -10,6 +11,7 @@ import {
   type LightCommandResponse,
   type PoleDetailResponse,
   type PoleRemoteResponse,
+  type ProjectRemoteResponse,
   type PoleVitalsResponse,
   type ProjectDetailResponse,
   type CreatePoleIssueRequest,
@@ -18,6 +20,7 @@ import {
   type PoleInstallRequest,
   type PoleLookupResponse,
 } from "@sllights/shared/api-contract";
+import type { ProjectLightCommand } from "@sllights/shared/remote-control";
 
 /** A failed call, carrying the server's own message (routes always send `{ error }`). */
 export class ApiError extends Error {
@@ -166,6 +169,20 @@ export function createApiClient({
     /** Switches this pole's light. The server picks the lamp; only brightness and time are sent. */
     sendLightCommand(customerId: string, projectId: string, poleId: string, command: { brightness: number; time: number }) {
       return request<LightCommandResponse>(mobilePoleRemotePath(customerId, projectId, poleId), {
+        method: "POST",
+        body: command,
+        auth: true,
+      });
+    },
+
+    /** The project's Leadsun gateways and lights with live state (null when it has none). */
+    getProjectRemote(customerId: string, projectId: string) {
+      return request<ProjectRemoteResponse>(mobileProjectRemotePath(customerId, projectId), { method: "GET", auth: true });
+    },
+
+    /** Project / Gateway / light Control for this project; the server checks the target belongs to it. */
+    sendProjectLightCommand(customerId: string, projectId: string, command: ProjectLightCommand) {
+      return request<LightCommandResponse>(mobileProjectRemotePath(customerId, projectId), {
         method: "POST",
         body: command,
         auth: true,
