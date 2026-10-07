@@ -209,3 +209,54 @@ export function sortIssuesNewestFirst<T extends { dateReported: string }>(issues
   };
   return [...issues].sort((a, b) => time(b) - time(a));
 }
+
+/**
+ * Whether a pole's coordinates can be put on a map: both present, finite and
+ * in range. (The web shows a map whenever both are non-null; this also
+ * keeps a malformed reading from crashing a native map view.)
+ */
+export function hasMapLocation(
+  lat: number | null | undefined,
+  long: number | null | undefined,
+): boolean {
+  return (
+    typeof lat === "number" &&
+    typeof long === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(long) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(long) <= 180
+  );
+}
+
+export interface MapRegion {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
+
+/** About the web map's zoom 16 (street level) — used for a single point, and as the closest zoom for several. */
+export const STREET_LEVEL_DELTA = 0.004;
+
+/**
+ * The map region that shows every point, like the web map's fitBounds: the
+ * box around them plus a margin so edge markers aren't clipped, never
+ * tighter than street level. A single point (or several in the same spot)
+ * centres at street level. Points without usable coordinates are ignored;
+ * null when none are left.
+ */
+export function mapRegionForPoints(points: readonly { lat: number | null; long: number | null }[]): MapRegion | null {
+  const usable = points.filter((p) => hasMapLocation(p.lat, p.long)) as { lat: number; long: number }[];
+  if (usable.length === 0) return null;
+  const lats = usable.map((p) => p.lat);
+  const longs = usable.map((p) => p.long);
+  const [minLat, maxLat, minLong, maxLong] = [Math.min(...lats), Math.max(...lats), Math.min(...longs), Math.max(...longs)];
+  const MARGIN = 1.4; // 20% padding on each side
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLong + maxLong) / 2,
+    latitudeDelta: Math.max(STREET_LEVEL_DELTA, (maxLat - minLat) * MARGIN),
+    longitudeDelta: Math.max(STREET_LEVEL_DELTA, (maxLong - minLong) * MARGIN),
+  };
+}

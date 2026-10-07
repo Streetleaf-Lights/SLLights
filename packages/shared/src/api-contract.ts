@@ -109,6 +109,9 @@ export interface CustomerOverviewResponse {
 export interface ProjectPoleRow {
   id: string;
   poleNumber: string;
+  /** For the project map (as on the web, shown to every viewer). */
+  lat: number | null;
+  long: number | null;
   connectedText: string | null;
   overallStatusText: string | null;
   lastUpdate: string | null;

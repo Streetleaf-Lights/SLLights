@@ -55,3 +55,58 @@ describe("issues", () => {
     expect(sorted.map((i) => i.id)).toEqual(["new", "old", "bad"]);
   });
 });
+
+import { hasMapLocation } from "../pole-detail";
+
+describe("hasMapLocation", () => {
+  it("accepts real coordinates and rejects missing, non-finite or out-of-range ones", () => {
+    expect(hasMapLocation(27.95, -82.46)).toBe(true);
+    expect(hasMapLocation(0, 0)).toBe(true);
+    expect(hasMapLocation(null, -82.46)).toBe(false);
+    expect(hasMapLocation(27.95, undefined)).toBe(false);
+    expect(hasMapLocation(Number.NaN, 1)).toBe(false);
+    expect(hasMapLocation(91, 1)).toBe(false);
+    expect(hasMapLocation(1, -181)).toBe(false);
+  });
+});
+
+import { mapRegionForPoints } from "../pole-detail";
+
+describe("mapRegionForPoints", () => {
+  it("centres a single pole at street level", () => {
+    expect(mapRegionForPoints([{ lat: 27.95, long: -82.46 }])).toEqual({
+      latitude: 27.95,
+      longitude: -82.46,
+      latitudeDelta: 0.004,
+      longitudeDelta: 0.004,
+    });
+  });
+
+  it("fits every pole with a margin", () => {
+    const region = mapRegionForPoints([
+      { lat: 27.9, long: -82.5 },
+      { lat: 28.0, long: -82.3 },
+      { lat: 27.95, long: -82.4 },
+    ])!;
+    expect(region.latitude).toBeCloseTo(27.95);
+    expect(region.longitude).toBeCloseTo(-82.4);
+    expect(region.latitudeDelta).toBeCloseTo(0.14); // 0.1 span × 1.4
+    expect(region.longitudeDelta).toBeCloseTo(0.28); // 0.2 span × 1.4
+    // Every pole is inside the region.
+    for (const p of [{ lat: 27.9, long: -82.5 }, { lat: 28.0, long: -82.3 }]) {
+      expect(Math.abs(p.lat - region.latitude)).toBeLessThanOrEqual(region.latitudeDelta / 2);
+      expect(Math.abs(p.long - region.longitude)).toBeLessThanOrEqual(region.longitudeDelta / 2);
+    }
+  });
+
+  it("never zooms closer than street level for poles close together", () => {
+    const region = mapRegionForPoints([{ lat: 27.95, long: -82.46 }, { lat: 27.9501, long: -82.4601 }])!;
+    expect(region.latitudeDelta).toBe(0.004);
+  });
+
+  it("ignores poles without usable coordinates, and is null when none are left", () => {
+    expect(mapRegionForPoints([{ lat: null, long: 1 }, { lat: 27.95, long: -82.46 }])?.latitude).toBe(27.95);
+    expect(mapRegionForPoints([{ lat: null, long: null }, { lat: 200, long: 1 }])).toBeNull();
+    expect(mapRegionForPoints([])).toBeNull();
+  });
+});

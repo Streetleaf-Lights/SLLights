@@ -23,6 +23,8 @@ const pole = (poleNumber: string, issues: string[] = []) =>
     connectedText: "Online",
     overallStatusText: "OK",
     lastUpdate: "2026-10-01 12:00:00+00:00",
+    lat: 27.95,
+    long: -82.46,
     poleIssues: issues.map((status, i) => ({ issueId: `${poleNumber}-${i}`, status, poleStatus: "", dateReported: "", problemDetails: null })),
   }) as unknown as PoleVital;
 
@@ -87,6 +89,8 @@ describe("toProjectDetail", () => {
     expect(result.poles[2]).toEqual({
       id: "id-PAS-10",
       poleNumber: "PAS-10",
+      lat: 27.95,
+      long: -82.46,
       connectedText: "Online",
       overallStatusText: "OK",
       lastUpdate: "2026-10-01 12:00:00+00:00",

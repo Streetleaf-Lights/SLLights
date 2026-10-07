@@ -69,6 +69,13 @@ describe("PoleDetailView (the web pole page)", () => {
     expect(within(card("Light")).getByText("Expected ON @ 19:54 EDT")).toBeTruthy();
   });
 
+  it("ends with Vitals History and then the Location map, as on the web", async () => {
+    await renderPole(false);
+    const sections = screen.getAllByText(/^(Statuses|Vitals History|Location)$/).map((n) => n.props.children);
+    expect(sections).toEqual(["Statuses", "Vitals History", "Location"]);
+    expect(screen.getByTestId("map-marker").props.title).toBe("PAS-1");
+  });
+
   it("gives customer-scoped viewers the simplified cards and no 48H status", async () => {
     await renderPole(true);
     expect(screen.queryByText("48H Overall Status: ")).toBeNull();

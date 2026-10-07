@@ -7,6 +7,7 @@ import { connectedTone, overallStatusTone } from "@sllights/shared/status";
 import { useApiQuery } from "@/api/useApiQuery";
 import { useAuth } from "@/auth/AuthProvider";
 import { count } from "@/ui/format";
+import { LocationMap } from "@/location/LocationMap";
 import { ListRow } from "@/ui/ListRow";
 import { Pagination } from "@/ui/Pagination";
 import { QueryStatus } from "@/ui/QueryStatus";
@@ -80,6 +81,14 @@ export function ProjectDetailView({
               { label: "Total faults", value: count(project.totalFaults), emphasis: "flagged" as const },
             ]}
           />
+          {/* As on the web: Location between the stats and the poles, plotting every pole (not just this page). */}
+          <Text style={styles.section}>Location</Text>
+          <LocationMap
+            testID="project-map"
+            points={state.data.poles.map((p) => ({ id: p.id, lat: p.lat, long: p.long, label: p.poleNumber }))}
+            emptyMessage="No poles have location data for this project."
+          />
+          <Text style={styles.section}>Poles</Text>
           <Text style={type.small}>
             {current.totalPages > 1
               ? `Showing ${current.firstItem}–${current.lastItem} of ${current.totalItems} poles`
@@ -159,6 +168,14 @@ const styles = StyleSheet.create({
   header: { gap: space.md, marginBottom: space.md },
   titleBlock: { gap: 2 },
   customer: { fontSize: 14, fontWeight: "600", color: colors.accentStrong },
+  section: {
+    marginTop: space.xs,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: colors.inkMuted,
+  },
   poleTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm },
   poleNumber: { fontSize: 18, fontWeight: "700", letterSpacing: 0.5, color: colors.ink, fontVariant: ["tabular-nums"] },
   issueBadge: {

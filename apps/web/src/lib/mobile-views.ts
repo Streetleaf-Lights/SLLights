@@ -66,6 +66,8 @@ export function toProjectDetail(
     .map((pole) => ({
       id: pole.id,
       poleNumber: pole.poleNumber,
+      lat: pole.lat,
+      long: pole.long,
       connectedText: pole.connectedText,
       overallStatusText: pole.overallStatusText,
       lastUpdate: pole.lastUpdate,

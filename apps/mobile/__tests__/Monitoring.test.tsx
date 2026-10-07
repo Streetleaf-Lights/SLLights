@@ -24,7 +24,7 @@ const project = {
   customer: { id: "c1", name: "Coastal Power" },
   project: { id: "p1", name: "North Corridor", active: true, totalLights: 3, connectedLights: 2, totalFaults: 1, percentWorking: 66.7 },
   poles: [
-    { id: "a", poleNumber: "PAS-1", connectedText: "Online", overallStatusText: "OK", lastUpdate: "2026-10-01 12:00:00+00:00", openIssues: 0 },
+    { id: "a", poleNumber: "PAS-1", lat: 27.95, long: -82.46, connectedText: "Online", overallStatusText: "OK", lastUpdate: "2026-10-01 12:00:00+00:00", openIssues: 0 },
     { id: "b", poleNumber: "PAS-2", connectedText: "Offline", overallStatusText: "Fault", lastUpdate: null, openIssues: 2 },
     { id: "c", poleNumber: "PAS-10", connectedText: null, overallStatusText: null, lastUpdate: null, openIssues: 1 },
   ],
@@ -321,6 +321,72 @@ describe("ProjectDetailView", () => {
     expect(screen.getByRole("button", { name: "Next page" }).props.accessibilityState.disabled).toBe(true);
   });
 
+});
+
+describe("ProjectDetailView map", () => {
+  const polesAt = (n: number, coords: (i: number) => { lat: number | null; long: number | null }) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `id${i + 1}`,
+      poleNumber: `PAS-${i + 1}`,
+      connectedText: "Online",
+      overallStatusText: "OK",
+      lastUpdate: null,
+      openIssues: 0,
+      ...coords(i),
+    }));
+
+  async function renderProject(poles: unknown[], viewerScoped = true) {
+    await signIn(viewerScoped ? "Customer Owner" : "Streetleaf Admin", viewerScoped ? "c1" : null);
+    const api = fakeApi({ getProject: jest.fn().mockResolvedValue({ ...project, poles }) });
+    await render(<ProjectDetailView customerId="c1" projectId="p1" viewerScoped={viewerScoped} />, {
+      wrapper: withSignedInAuth(api),
+    });
+    await screen.findByText(/poles?$/);
+  }
+
+  const markers = () => screen.queryAllByTestId("map-marker");
+
+  it("plots every pole in the project, not just the page of 10 in the list", async () => {
+    await renderProject(polesAt(57, (i) => ({ lat: 27.9 + i * 0.001, long: -82.4 })));
+    expect(screen.getByText("Showing 1–10 of 57 poles")).toBeTruthy();
+    expect(markers()).toHaveLength(57);
+    expect(markers().map((m) => m.props.title)).toContain("PAS-57");
+    // Framed to fit them all: the farthest poles are inside the region.
+    const region = screen.getByTestId("project-map").props.initialRegion;
+    expect(Math.abs(27.9 - region.latitude)).toBeLessThanOrEqual(region.latitudeDelta / 2);
+    expect(Math.abs(27.956 - region.latitude)).toBeLessThanOrEqual(region.latitudeDelta / 2);
+  });
+
+  it("skips poles without coordinates", async () => {
+    await renderProject(polesAt(3, (i) => (i === 1 ? { lat: null, long: null } : { lat: 27.95, long: -82.46 + i * 0.001 })));
+    expect(markers().map((m) => m.props.title)).toEqual(["PAS-1", "PAS-3"]);
+  });
+
+  it("says so when no pole has location data, as on the web", async () => {
+    await renderProject(polesAt(2, () => ({ lat: null, long: null })));
+    expect(screen.getByText("No poles have location data for this project.")).toBeTruthy();
+    expect(screen.queryByTestId("project-map")).toBeNull();
+  });
+
+  it("sits between the stats and the pole list, as on the web", async () => {
+    await renderProject(polesAt(3, () => ({ lat: 27.95, long: -82.46 })));
+    const order: string[] = [];
+    const walk = (node: unknown): void => {
+      if (!node) return;
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (typeof node === "string") return void order.push(node);
+      const n = node as { props?: { accessibilityLabel?: unknown; testID?: unknown }; children?: unknown[] };
+      if (n.props?.testID === "project-map") order.push("[map]");
+      else if (typeof n.props?.accessibilityLabel === "string") order.push(n.props.accessibilityLabel);
+      (n.children ?? []).forEach(walk);
+    };
+    walk(screen.toJSON());
+    const at = (label: string) => order.findIndex((x) => x === label || x.startsWith(label));
+    expect(at("Total faults")).toBeLessThan(at("Location"));
+    expect(at("Location")).toBeLessThan(at("[map]"));
+    expect(at("[map]")).toBeLessThan(at("Poles"));
+    expect(at("Poles")).toBeLessThan(at("Pole PAS-1"));
+  });
 });
 
 describe("HomeTab", () => {

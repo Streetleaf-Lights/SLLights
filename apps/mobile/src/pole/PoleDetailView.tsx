@@ -16,6 +16,7 @@ import { QueryStatus } from "@/ui/QueryStatus";
 import { toneColor } from "@/ui/status";
 import { colors, radius, space, touch, type } from "@/ui/theme";
 import { ReportIssueSection } from "./ReportIssueSection";
+import { PoleLocationMap } from "./PoleLocationMap";
 import { VitalsChart } from "./VitalsChart";
 
 /**
@@ -23,8 +24,8 @@ import { VitalsChart } from "./VitalsChart";
  * install date, coordinates, connection, and the 48H overall status for
  * staff), then the Light / Panel / Battery / Issue Entry status cards. The
  * server shapes the cards for the viewer's role with the same shared rules
- * the web page uses — then the Vitals History chart. Map and remote control
- * come later.
+ * the web page uses — then the Vitals History chart and the Location map.
+ * Remote control comes later.
  */
 export function PoleDetailView({
   customerId,
@@ -106,6 +107,10 @@ export function PoleDetailView({
       {/* After Statuses, as on the web. */}
       <Text style={styles.section}>Vitals History</Text>
       <VitalsChart customerId={state.data.customer.id} projectId={project.id} poleId={pole.id} />
+
+      {/* Last, as on the web. */}
+      <Text style={styles.section}>Location</Text>
+      <PoleLocationMap lat={pole.lat} long={pole.long} poleNumber={pole.poleNumber} />
 
       {footer}
     </ScrollView>

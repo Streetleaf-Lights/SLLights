@@ -21,3 +21,12 @@ jest.mock("expo-haptics", () => ({
 beforeEach(() => {
   (jest.requireMock("expo-secure-store") as { __store: Map<string, string> }).__store.clear();
 });
+
+// Native map views can't run under Jest: stand-ins that render plain Views
+// carrying the props the app passed (region, interaction flags, marker).
+jest.mock("react-native-maps", () => {
+  const { View } = jest.requireActual("react-native");
+  const MapView = (props: Record<string, unknown>) => <View {...props} />;
+  const Marker = (props: Record<string, unknown>) => <View testID="map-marker" {...props} />;
+  return { __esModule: true, default: MapView, Marker };
+});
