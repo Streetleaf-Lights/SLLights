@@ -99,3 +99,18 @@ export function makePoleDetail(viewerScoped: boolean, pole: PoleVital = makePole
     },
   };
 }
+
+/** Text and accessibility labels in on-screen (tree) order, for checking where things sit. */
+export function screenOrder(tree: unknown): string[] {
+  const order: string[] = [];
+  const walk = (node: unknown): void => {
+    if (!node) return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (typeof node === "string") return void order.push(node);
+    const n = node as { props?: { accessibilityLabel?: unknown }; children?: unknown[] };
+    if (typeof n.props?.accessibilityLabel === "string") order.push(n.props.accessibilityLabel);
+    (n.children ?? []).forEach(walk);
+  };
+  walk(tree);
+  return order;
+}

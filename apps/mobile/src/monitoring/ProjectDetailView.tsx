@@ -10,6 +10,7 @@ import { count } from "@/ui/format";
 import { LocationMap } from "@/location/LocationMap";
 import { ProjectRemotePanel } from "@/remote/ProjectRemotePanel";
 import { PillButton } from "@/ui/PillButton";
+import { revealInScroll } from "@/ui/revealInScroll";
 import { ListRow } from "@/ui/ListRow";
 import { Pagination } from "@/ui/Pagination";
 import { QueryStatus } from "@/ui/QueryStatus";
@@ -70,21 +71,32 @@ export function ProjectDetailView({
       ListHeaderComponent={
         <View style={styles.header}>
           <View style={styles.titleBlock}>
-            <View style={styles.titleTop}>
-              <Text style={[styles.customer, styles.flex]}>{customer.name}</Text>
-              {/* As on the web: Remote Control when the project has Leadsun lights — small, top right. */}
-              {state.data.hasRemoteControl ? (
-                <PillButton label="Remote Control" icon="bulb-outline" onPress={() => setRemoteOpen((open) => !open)} />
-              ) : null}
-            </View>
+            <Text style={styles.customer}>{customer.name}</Text>
             <Text style={type.title} accessibilityRole="header">
               {project.name}
             </Text>
             {project.active ? null : <Text style={type.small}>Inactive project</Text>}
+            {/* As on the web: Remote Control when the project has Leadsun lights — small, at the bottom right. */}
+            {state.data.hasRemoteControl ? (
+              <View style={styles.headerAction}>
+                <PillButton label="Remote Control" icon="bulb-outline" onPress={() => setRemoteOpen((open) => !open)} />
+              </View>
+            ) : null}
           </View>
           {/* Customer-scoped viewers get Total lights and Total faults only (no Connected, as on the web). */}
           {state.data.hasRemoteControl && remoteOpen ? (
-            <ProjectRemotePanel customerId={customerId} projectId={projectId} onClose={() => setRemoteOpen(false)} />
+            <ProjectRemotePanel
+              customerId={customerId}
+              projectId={projectId}
+              onClose={() => setRemoteOpen(false)}
+              // After a confirmed command, scroll to the affected light's new status.
+              onReveal={(row) =>
+                revealInScroll(row, {
+                  node: listRef.current?.getNativeScrollRef(),
+                  scrollTo: (y) => listRef.current?.scrollToOffset({ offset: y, animated: true }),
+                })
+              }
+            />
           ) : null}
           <StatRow
             stats={[
@@ -179,8 +191,7 @@ const styles = StyleSheet.create({
   content: { padding: space.lg, paddingBottom: space.xxl },
   header: { gap: space.md, marginBottom: space.md },
   titleBlock: { gap: 2 },
-  titleTop: { flexDirection: "row", alignItems: "center", gap: space.sm },
-  flex: { flex: 1 },
+  headerAction: { alignItems: "flex-end", marginTop: space.sm },
   customer: { fontSize: 14, fontWeight: "600", color: colors.accentStrong },
   section: {
     marginTop: space.xs,

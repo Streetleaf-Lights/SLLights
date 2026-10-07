@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ProjectRemoteResponse } from "@sllights/shared/api-contract";
@@ -33,16 +33,35 @@ export function ProjectRemotePanel({
   customerId,
   projectId,
   onClose,
+  onReveal,
 }: {
   customerId: string;
   projectId: string;
   onClose: () => void;
+  /** Scrolls the screen to a light row (after a confirmed command). */
+  onReveal?: (row: View, productName: string) => void;
 }) {
   const { api } = useAuth();
   const load = useCallback(() => api.getProjectRemote(customerId, projectId), [api, customerId, projectId]);
   const { state, retry, refresh } = useApiQuery(load);
   const [action, setAction] = useState<Action | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Lights changed by the last confirmed command: shown "Just updated", and the first is scrolled to.
+  const [updated, setUpdated] = useState<Set<string>>(new Set());
+  const rows = useRef(new Map<string, View>());
+  const revealNext = useRef<string | null>(null);
+
+  // After a confirmed command re-renders the panel (gateway opened, status
+  // refreshed), scroll to the first affected light. A ref, not state, so
+  // this effect never sets state itself.
+  useEffect(() => {
+    const name = revealNext.current;
+    if (!name || state.status !== "success" || state.refreshing) return;
+    const row = rows.current.get(name);
+    if (!row) return;
+    revealNext.current = null;
+    onReveal?.(row, name);
+  });
 
   if (state.status === "loading") {
     return (
@@ -98,6 +117,11 @@ export function ProjectRemotePanel({
     return new Map<string, LampState>(r ? r.gateways.flatMap((g) => g.lights.map((l) => [l.providedProductId, l.lamp] as const)) : []);
   };
 
+  const open = (next: Action) => {
+    setUpdated(new Set());
+    setAction(next);
+  };
+
   const form = action ? (
     <LightCommandForm
       key={action.kind === "light" ? `light-${action.light.productName}` : action.kind === "gateway" ? `gw-${action.code}` : "project"}
@@ -112,7 +136,19 @@ export function ProjectRemotePanel({
       selectable={action.kind !== "light"}
       send={send}
       readLamps={readLamps}
-      onConfirmed={refresh}
+      onConfirmed={(_state, lights) => {
+        // Open every gateway the command touched, mark the lights, refresh
+        // their live state, then scroll to the first one (effect above).
+        const names = new Set(lights.map((l) => l.productName));
+        setExpanded((prev) => {
+          const next = new Set(prev);
+          for (const g of remote.gateways) if (g.lights.some((l) => names.has(l.productName))) next.add(g.code);
+          return next;
+        });
+        setUpdated(names);
+        revealNext.current = lights[0]?.productName ?? null;
+        refresh();
+      }}
       onCancel={() => setAction(null)}
     />
   ) : null;
@@ -134,20 +170,20 @@ export function ProjectRemotePanel({
             {plural(remote.gateways.length, "Gateway", "Gateways")} · {plural(allLights.length, "Light", "Lights")}
           </Text>
         </View>
-        <Button label="Project Control" variant="secondary" onPress={() => setAction({ kind: "project", affected: allLights })} />
+        <Button label="Project Control" variant="secondary" onPress={() => open({ kind: "project", affected: allLights })} />
       </View>
       {remote.statusError ? <Text style={styles.error}>{remote.statusError}</Text> : null}
 
       {form}
 
       {remote.gateways.map((gateway) => {
-        const open = expanded.has(gateway.code);
+        const isOpen = expanded.has(gateway.code);
         return (
           <View key={gateway.code} style={styles.gateway}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${gateway.name}, ${plural(gateway.lights.length, "light", "lights")}`}
-              accessibilityState={{ expanded: open }}
+              accessibilityState={{ expanded: isOpen }}
               onPress={() => toggleGateway(gateway.code)}
               style={styles.gatewayHead}
             >
@@ -156,25 +192,34 @@ export function ProjectRemotePanel({
                 <Text style={styles.code}>{gateway.code}</Text>
                 <Text style={styles.muted}>{plural(gateway.lights.length, "Light", "Lights")}</Text>
               </View>
-              <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={colors.inkFaint} />
+              <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={colors.inkFaint} />
             </Pressable>
             <Button
               label="Gateway Control"
               variant="secondary"
-              onPress={() => setAction({ kind: "gateway", code: gateway.code, name: gateway.name, affected: lightsOf(gateway) })}
+              onPress={() => open({ kind: "gateway", code: gateway.code, name: gateway.name, affected: lightsOf(gateway) })}
             />
-            {open
+            {isOpen
               ? lightsOf(gateway).map((light, i) => (
-                  <View key={light.productName} style={styles.light}>
+                  <View
+                    key={light.productName}
+                    testID={`remote-light-${light.productName}`}
+                    ref={(node) => {
+                      if (node) rows.current.set(light.productName, node);
+                      else rows.current.delete(light.productName);
+                    }}
+                    style={[styles.light, updated.has(light.productName) && styles.lightUpdated]}
+                  >
                     <View style={styles.flex}>
                       <Text style={styles.lightName}>{light.productName}</Text>
+                      {updated.has(light.productName) ? <Text style={styles.updated}>Just updated</Text> : null}
                       <Text style={styles.code}>{light.providedProductId}</Text>
                     </View>
                     <LampIndicator lamp={gateway.lights[i].lamp} compact />
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Control ${light.productName}`}
-                      onPress={() => setAction({ kind: "light", light })}
+                      onPress={() => open({ kind: "light", light })}
                       hitSlop={10}
                     >
                       <Text style={styles.link}>Control</Text>
@@ -219,5 +264,7 @@ const styles = StyleSheet.create({
     paddingTop: space.sm,
   },
   lightName: { fontSize: 14, fontWeight: "600", color: colors.ink },
+  lightUpdated: { backgroundColor: colors.accentSoft, borderRadius: radius.sm, paddingHorizontal: space.sm, paddingBottom: space.xs },
+  updated: { fontSize: 11.5, fontWeight: "700", color: colors.accentStrong },
   link: { fontSize: 13, fontWeight: "600", color: colors.accentStrong },
 });

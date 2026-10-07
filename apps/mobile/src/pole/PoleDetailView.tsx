@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { PoleDetailResponse } from "@sllights/shared/api-contract";
 import { formatDate, formatTimestamp } from "@sllights/shared/format";
@@ -13,6 +13,7 @@ import { useApiQuery } from "@/api/useApiQuery";
 import { useAuth } from "@/auth/AuthProvider";
 import { Banner } from "@/ui/Banner";
 import { PillButton } from "@/ui/PillButton";
+import { revealInScroll } from "@/ui/revealInScroll";
 import { QueryStatus } from "@/ui/QueryStatus";
 import { toneColor } from "@/ui/status";
 import { colors, radius, space, touch, type } from "@/ui/theme";
@@ -51,27 +52,23 @@ export function PoleDetailView({
   }, [api, customerId, projectId, poleId, onLoaded]);
   const { state, retry, refresh } = useApiQuery(load);
   const [remoteOpen, setRemoteOpen] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
   if (state.status !== "success") return <QueryStatus state={state} onRetry={retry} />;
   const { project, pole } = state.data;
 
   return (
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} tintColor={colors.accentStrong} />}
     >
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={[styles.project, styles.flex]}>
-            {project.name}
-            {project.active ? "" : "  · Inactive"}
-          </Text>
-          {/* As on the web: Remote Control when the pole has a Leadsun product — small, top right. */}
-          {pole.hasRemoteControl ? (
-            <PillButton label="Remote Control" icon="bulb-outline" onPress={() => setRemoteOpen((open) => !open)} />
-          ) : null}
-        </View>
+        <Text style={styles.project}>
+          {project.name}
+          {project.active ? "" : "  · Inactive"}
+        </Text>
         <Text style={styles.poleNumber} accessibilityRole="header">
           {pole.poleNumber}
           {pole.active ? "" : "  · Inactive"}
@@ -102,6 +99,12 @@ export function PoleDetailView({
             <Fact label="Long" value={formatCoordinate(pole.long)} />
           </View>
         </View>
+        {/* As on the web: Remote Control when the pole has a Leadsun product — small, at the bottom right. */}
+        {pole.hasRemoteControl ? (
+          <View style={styles.headerAction}>
+            <PillButton label="Remote Control" icon="bulb-outline" onPress={() => setRemoteOpen((open) => !open)} />
+          </View>
+        ) : null}
       </View>
 
       {pole.hasRemoteControl && remoteOpen ? (
@@ -110,6 +113,12 @@ export function PoleDetailView({
           projectId={project.id}
           poleId={pole.id}
           onClose={() => setRemoteOpen(false)}
+          onReveal={(panel) =>
+            revealInScroll(panel, {
+              node: scrollRef.current?.getNativeScrollRef(),
+              scrollTo: (y) => scrollRef.current?.scrollTo({ y, animated: true }),
+            })
+          }
         />
       ) : null}
 
@@ -248,8 +257,7 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   project: { fontSize: 14, fontWeight: "600", color: colors.accent },
-  headerTop: { flexDirection: "row", alignItems: "center", gap: space.sm },
-  flex: { flex: 1 },
+  headerAction: { alignItems: "flex-end", marginTop: space.sm },
   poleNumber: { fontSize: 24, fontWeight: "700", letterSpacing: 0.5, color: colors.ink, fontVariant: ["tabular-nums"] },
   connectionRow: { flexDirection: "row", alignItems: "center", gap: space.xs + 2, marginTop: space.xs },
   dot: { width: 8, height: 8, borderRadius: 4 },

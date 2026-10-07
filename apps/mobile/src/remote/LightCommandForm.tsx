@@ -55,7 +55,8 @@ export function LightCommandForm({
   send: (command: LightCommand, included: AffectedLight[]) => Promise<string>;
   /** Live state by Leadsun device id. */
   readLamps: () => Promise<Map<string, LampState>>;
-  onConfirmed?: (state: "on" | "off") => void;
+  /** Called once every included light is confirmed, with the new state and which lights changed. */
+  onConfirmed?: (state: "on" | "off", lights: AffectedLight[]) => void;
   onCancel?: () => void;
 }) {
   const [brightness, setBrightness] = useState(DEFAULT_BRIGHTNESS);
@@ -102,7 +103,7 @@ export function LightCommandForm({
         if (!alive.current) return;
         if (lights.every((light) => lamps.get(light.providedProductId) === want)) {
           setConfirm("confirmed");
-          onConfirmed?.(want);
+          onConfirmed?.(want, lights);
         } else if (n >= MAX_CONFIRM_ATTEMPTS) {
           setConfirm("unconfirmed");
         } else {

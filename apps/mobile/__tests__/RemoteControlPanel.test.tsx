@@ -23,10 +23,11 @@ afterEach(async () => {
 async function renderPanel(getPoleRemote: jest.Mock, sendLightCommand?: jest.Mock) {
   const api = fakeApi({ getPoleRemote, ...(sendLightCommand ? { sendLightCommand } : {}) });
   const onClose = jest.fn();
-  await render(<RemoteControlPanel customerId="c1" projectId="p1" poleId="pole1" onClose={onClose} />, {
+  const onReveal = jest.fn();
+  await render(<RemoteControlPanel customerId="c1" projectId="p1" poleId="pole1" onClose={onClose} onReveal={onReveal} />, {
     wrapper: withSignedInAuth(api),
   });
-  return { api, onClose };
+  return { api, onClose, onReveal };
 }
 
 const tick = (ms: number) =>
@@ -88,7 +89,7 @@ describe("RemoteControlPanel", () => {
       .mockResolvedValueOnce(remote("off")) // when the panel opens
       .mockResolvedValueOnce(remote("off")) // 1st check: not yet
       .mockResolvedValueOnce(remote("on")); // 2nd check: matches
-    const { api } = await renderPanel(getPoleRemote);
+    const { api, onReveal } = await renderPanel(getPoleRemote);
     await openForm();
     await fireEvent.changeText(screen.getByLabelText("Time (seconds)"), "60");
     await fireEvent.press(submitButton());
@@ -101,6 +102,8 @@ describe("RemoteControlPanel", () => {
     await tick(1000);
     expect(await screen.findByText("Confirmed: the light is ON.")).toBeTruthy();
     expect(screen.getByLabelText("Light is ON")).toBeTruthy();
+    // Scrolls back up to the panel's live ON/OFF.
+    expect(onReveal).toHaveBeenCalledTimes(1);
     expect(getPoleRemote).toHaveBeenCalledTimes(3);
   });
 

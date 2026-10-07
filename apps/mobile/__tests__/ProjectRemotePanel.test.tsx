@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { ProjectDetailView } from "@/monitoring/ProjectDetailView";
 import { ProjectRemotePanel } from "@/remote/ProjectRemotePanel";
 import { sessionStore } from "@/auth/sessionStore";
-import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
+import { fakeApi, futureExp, makeToken, screenOrder, withSignedInAuth } from "../test-utils/helpers";
 
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }) }));
@@ -39,9 +39,21 @@ afterEach(async () => {
 async function renderPanel(getProjectRemote = jest.fn().mockResolvedValue(remoteWith({ 1: "on" }))) {
   const api = fakeApi({ getProjectRemote });
   const onClose = jest.fn();
-  await render(<ProjectRemotePanel customerId="c1" projectId="p1" onClose={onClose} />, { wrapper: withSignedInAuth(api) });
+  const onReveal = jest.fn();
+  await render(<ProjectRemotePanel customerId="c1" projectId="p1" onClose={onClose} onReveal={onReveal} />, {
+    wrapper: withSignedInAuth(api),
+  });
   await screen.findByText("North (Leadsun)");
-  return { api, onClose };
+  return { api, onClose, onReveal };
+}
+
+/** Advances through the confirmation checks until confirmed. */
+async function confirmAfterChecks(n: number) {
+  for (let i = 0; i < n; i++) {
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
+    });
+  }
 }
 
 const press = (name: string | RegExp) => fireEvent.press(screen.getByRole("button", { name }));
@@ -148,6 +160,68 @@ describe("ProjectRemotePanel", () => {
     await waitFor(() => expect(getProjectRemote.mock.calls.length).toBeGreaterThanOrEqual(4)); // + the refresh
   });
 
+  describe("after a confirmed command", () => {
+    it("opens the light's gateway, marks it updated with its new state, and scrolls to it", async () => {
+      // Gateway B starts collapsed; LOC-3 is OFF until the first check.
+      const getProjectRemote = jest
+        .fn()
+        .mockResolvedValueOnce(remoteWith({}))
+        .mockResolvedValue(remoteWith({ 3: "on" }));
+      const { onReveal } = await renderPanel(getProjectRemote);
+      expect(screen.queryByTestId("remote-light-LOC-3")).toBeNull();
+
+      await fireEvent.press(screen.getAllByRole("button", { name: "Gateway Control" })[1]);
+      await go();
+      await confirmAfterChecks(1);
+
+      expect(await screen.findByText("Confirmed: the light is ON.")).toBeTruthy();
+      const row = await screen.findByTestId("remote-light-LOC-3");
+      expect(within(row).getByText("Just updated")).toBeTruthy();
+      expect(within(row).getByLabelText("Light is ON")).toBeTruthy();
+      await waitFor(() => expect(onReveal).toHaveBeenCalledTimes(1));
+      expect(onReveal.mock.calls[0][1]).toBe("LOC-3");
+      expect(onReveal.mock.calls[0][0]).toBeTruthy(); // the row to scroll to
+    });
+
+    it("after a project command, opens every affected gateway and scrolls to the first affected light", async () => {
+      const getProjectRemote = jest
+        .fn()
+        .mockResolvedValueOnce(remoteWith({}))
+        .mockResolvedValue(remoteWith({ 1: "on", 2: "on", 3: "on" }));
+      const { onReveal } = await renderPanel(getProjectRemote);
+      await press("Project Control");
+      await go();
+      await confirmAfterChecks(1);
+
+      for (const n of [1, 2, 3]) {
+        expect(within(await screen.findByTestId(`remote-light-LOC-${n}`)).getByText("Just updated")).toBeTruthy();
+      }
+      await waitFor(() => expect(onReveal).toHaveBeenCalledTimes(1));
+      expect(onReveal.mock.calls[0][1]).toBe("LOC-1");
+    });
+
+    it("clears the 'Just updated' marks when another control is opened", async () => {
+      const getProjectRemote = jest.fn().mockResolvedValueOnce(remoteWith({})).mockResolvedValue(remoteWith({ 3: "on" }));
+      await renderPanel(getProjectRemote);
+      await fireEvent.press(screen.getAllByRole("button", { name: "Gateway Control" })[1]);
+      await go();
+      await confirmAfterChecks(1);
+      await screen.findByText("Just updated");
+      await press("Project Control");
+      expect(screen.queryByText("Just updated")).toBeNull();
+    });
+
+    it("doesn't scroll anywhere if the command isn't confirmed", async () => {
+      const { onReveal } = await renderPanel(jest.fn().mockResolvedValue(remoteWith({})));
+      await fireEvent.press(screen.getAllByRole("button", { name: "Gateway Control" })[1]);
+      await go();
+      await confirmAfterChecks(15);
+      expect(await screen.findByText("Didn't confirm — the light may not have changed yet.")).toBeTruthy();
+      expect(onReveal).not.toHaveBeenCalled();
+      expect(screen.queryByText("Just updated")).toBeNull();
+    });
+  });
+
   it("Cancel closes the form; Close closes the panel", async () => {
     const { onClose } = await renderPanel();
     await press("Project Control");
@@ -173,8 +247,12 @@ describe("header Remote Control pills", () => {
     });
     await render(<ProjectDetailView customerId="c1" projectId="p1" viewerScoped={false} />, { wrapper: withSignedInAuth(api) });
     const pill = await screen.findByRole("button", { name: "Remote Control" });
-    // Shares the title row with the customer name (top right), rather than a full-width button.
-    expect(within(screen.getByText("Coastal Power").parent!.parent!).getByRole("button", { name: "Remote Control" })).toBeTruthy();
+    // At the bottom of the header: after the customer and project names, before the stats.
+    const order = screenOrder(screen.toJSON());
+    const at = (label: string) => order.findIndex((x) => x === label || x.startsWith(label));
+    expect(at("Coastal Power")).toBeLessThan(at("Remote Control"));
+    expect(at("North")).toBeLessThan(at("Remote Control"));
+    expect(at("Remote Control")).toBeLessThan(at("Total lights"));
     await fireEvent.press(pill);
     expect(await screen.findByTestId("project-remote-panel")).toBeTruthy();
   });

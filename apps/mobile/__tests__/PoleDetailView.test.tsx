@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { PoleDetailView } from "@/pole/PoleDetailView";
 import { sessionStore } from "@/auth/sessionStore";
-import { fakeApi, futureExp, makePoleDetail, makePoleVital, makeToken, withSignedInAuth } from "../test-utils/helpers";
+import { fakeApi, futureExp, makePoleDetail, makePoleVital, makeToken, screenOrder, withSignedInAuth } from "../test-utils/helpers";
 
 beforeEach(async () => {
   const token = makeToken({ sub: "u1", role: "Streetleaf Admin", exp: futureExp() });
@@ -92,8 +92,11 @@ describe("PoleDetailView (the web pole page)", () => {
     });
     await render(<PoleDetailView customerId="c1" projectId="p1" poleId="pole1" />, { wrapper: withSignedInAuth(api) });
     const pill = await screen.findByRole("button", { name: "Remote Control" });
-    // A small pill sharing the top row with the project name, not a full-width button.
-    expect(within(screen.getByText("North Corridor").parent!).getByRole("button", { name: "Remote Control" })).toBeTruthy();
+    // At the bottom of the header: after the coordinates, before Statuses.
+    const order = screenOrder(screen.toJSON());
+    const at = (label: string) => order.indexOf(label);
+    expect(at("-82.46")).toBeLessThan(at("Remote Control"));
+    expect(at("Remote Control")).toBeLessThan(at("Statuses"));
     await fireEvent.press(pill);
     expect(await screen.findByText("LOC-1")).toBeTruthy();
     expect(api.getPoleRemote).toHaveBeenCalledWith("c1", "p1", "pole1");

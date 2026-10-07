@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import type { LampState } from "@sllights/shared/remote-control";
 import { useApiQuery } from "@/api/useApiQuery";
@@ -20,17 +20,21 @@ export function RemoteControlPanel({
   projectId,
   poleId,
   onClose,
+  onReveal,
 }: {
   customerId: string;
   projectId: string;
   poleId: string;
   onClose: () => void;
+  /** Scrolls the page to the panel's live ON/OFF (after a confirmed command). */
+  onReveal?: (panel: View) => void;
 }) {
   const { api } = useAuth();
   const load = useCallback(() => api.getPoleRemote(customerId, projectId, poleId), [api, customerId, projectId, poleId]);
   const { state, retry } = useApiQuery(load);
   const [liveLamp, setLiveLamp] = useState<LampState | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const panelRef = useRef<View>(null);
 
   if (state.status === "loading") {
     return (
@@ -61,7 +65,7 @@ export function RemoteControlPanel({
   }
 
   return (
-    <View style={styles.panel} testID="remote-control-panel">
+    <View style={styles.panel} testID="remote-control-panel" ref={panelRef}>
       <View style={styles.top}>
         <View style={styles.flex}>
           <Text style={styles.product}>{remote.productName}</Text>
@@ -91,7 +95,11 @@ export function RemoteControlPanel({
             const r = (await api.getPoleRemote(customerId, projectId, poleId)).remote;
             return new Map(r ? [[r.providedProductId, r.lamp]] : []);
           }}
-          onConfirmed={(lamp) => setLiveLamp(lamp)}
+          onConfirmed={(lamp) => {
+            setLiveLamp(lamp);
+            // Scroll back up to the live ON/OFF at the top of this panel.
+            if (panelRef.current) onReveal?.(panelRef.current);
+          }}
         />
       ) : null}
 
