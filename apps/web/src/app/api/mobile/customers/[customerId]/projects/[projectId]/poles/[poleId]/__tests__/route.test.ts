@@ -66,6 +66,7 @@ describe("GET /api/mobile/customers/{c}/projects/{p}/poles/{poleId}", () => {
       overallStatusText: "Fault",
       lat: 27.95,
       issues: [{ issueId: "i1" }],
+      hasRemoteControl: false, // project p1 has no Leadsun project in this fixture
     });
     const battery = body.pole.cards.find((c: { id: string }) => c.id === "battery");
     expect(battery.status).toEqual({ text: "Fault", tone: "flagged" });
@@ -86,6 +87,19 @@ describe("GET /api/mobile/customers/{c}/projects/{p}/poles/{poleId}", () => {
   it("404s another customer's pole for a customer-scoped token, without calling APIM", async () => {
     expect((await call(ownerC1, "c2")).status).toBe(404);
     expect(getVitalsMock).not.toHaveBeenCalled();
+  });
+
+  it("flags remote control when the pole matches a Leadsun product (as the web shows its button)", async () => {
+    prime();
+    getProjectsMock.mockResolvedValue([
+      {
+        id: "p1", name: "North", active: true,
+        leadsunProject: { ProjectId: "LS", ProjectName: "N", totalGateways: 1, totalPoles: 1,
+          groups: [{ GroupId: 1, GroupName: "G", GatewayCode: "GW", totalPoles: 1,
+            products: [{ ProductId: 1, ProductName: "L1", ProvidedProductId: "AEX", PoleNumber: "PAS-1" }] }] },
+      },
+    ]);
+    expect((await (await call(ownerC1)).json()).pole.hasRemoteControl).toBe(true);
   });
 
   it("404s an unknown project or pole", async () => {

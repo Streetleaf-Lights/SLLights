@@ -12,11 +12,13 @@ import { overallStatusTone } from "@sllights/shared/status";
 import { useApiQuery } from "@/api/useApiQuery";
 import { useAuth } from "@/auth/AuthProvider";
 import { Banner } from "@/ui/Banner";
+import { Button } from "@/ui/Button";
 import { QueryStatus } from "@/ui/QueryStatus";
 import { toneColor } from "@/ui/status";
 import { colors, radius, space, touch, type } from "@/ui/theme";
 import { ReportIssueSection } from "./ReportIssueSection";
 import { PoleLocationMap } from "./PoleLocationMap";
+import { RemoteControlPanel } from "./RemoteControlPanel";
 import { VitalsChart } from "./VitalsChart";
 
 /**
@@ -48,6 +50,7 @@ export function PoleDetailView({
     return data;
   }, [api, customerId, projectId, poleId, onLoaded]);
   const { state, retry, refresh } = useApiQuery(load);
+  const [remoteOpen, setRemoteOpen] = useState(false);
 
   if (state.status !== "success") return <QueryStatus state={state} onRetry={retry} />;
   const { project, pole } = state.data;
@@ -93,7 +96,22 @@ export function PoleDetailView({
             <Fact label="Long" value={formatCoordinate(pole.long)} />
           </View>
         </View>
+        {/* As on the web: a Remote Control button when the pole has a Leadsun product. */}
+        {pole.hasRemoteControl && !remoteOpen ? (
+          <View style={styles.remoteButton}>
+            <Button label="Remote Control" variant="secondary" onPress={() => setRemoteOpen(true)} />
+          </View>
+        ) : null}
       </View>
+
+      {pole.hasRemoteControl && remoteOpen ? (
+        <RemoteControlPanel
+          customerId={state.data.customer.id}
+          projectId={project.id}
+          poleId={pole.id}
+          onClose={() => setRemoteOpen(false)}
+        />
+      ) : null}
 
       <Text style={styles.section}>Statuses</Text>
       {pole.cards.map((card) => (
@@ -230,6 +248,7 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   project: { fontSize: 14, fontWeight: "600", color: colors.accent },
+  remoteButton: { marginTop: space.md },
   poleNumber: { fontSize: 24, fontWeight: "700", letterSpacing: 0.5, color: colors.ink, fontVariant: ["tabular-nums"] },
   connectionRow: { flexDirection: "row", alignItems: "center", gap: space.xs + 2, marginTop: space.xs },
   dot: { width: 8, height: 8, borderRadius: 4 },

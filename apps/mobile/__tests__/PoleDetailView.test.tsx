@@ -76,6 +76,26 @@ describe("PoleDetailView (the web pole page)", () => {
     expect(screen.getByTestId("map-marker").props.title).toBe("PAS-1");
   });
 
+  it("shows the Remote Control button only for poles with remote control, and opens the panel", async () => {
+    await renderPole(false);
+    expect(screen.queryByRole("button", { name: "Remote Control" })).toBeNull();
+  });
+
+  it("opens the remote control panel from the header", async () => {
+    const detail = makePoleDetail(false);
+    detail.pole.hasRemoteControl = true;
+    const api = fakeApi({
+      getPoleDetail: jest.fn().mockResolvedValue(detail),
+      getPoleRemote: jest.fn().mockResolvedValue({
+        remote: { productName: "LOC-1", providedProductId: "AEX-1", gatewayName: null, lamp: "on", statusError: null },
+      }),
+    });
+    await render(<PoleDetailView customerId="c1" projectId="p1" poleId="pole1" />, { wrapper: withSignedInAuth(api) });
+    await fireEvent.press(await screen.findByRole("button", { name: "Remote Control" }));
+    expect(await screen.findByText("LOC-1")).toBeTruthy();
+    expect(api.getPoleRemote).toHaveBeenCalledWith("c1", "p1", "pole1");
+  });
+
   it("gives customer-scoped viewers the simplified cards and no 48H status", async () => {
     await renderPole(true);
     expect(screen.queryByText("48H Overall Status: ")).toBeNull();

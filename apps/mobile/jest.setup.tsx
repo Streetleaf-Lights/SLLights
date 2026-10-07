@@ -30,3 +30,9 @@ jest.mock("react-native-maps", () => {
   const Marker = (props: Record<string, unknown>) => <View testID="map-marker" {...props} />;
   return { __esModule: true, default: MapView, Marker };
 });
+
+// The native slider can't run under Jest: a View carrying its props.
+jest.mock("@react-native-community/slider", () => {
+  const { View } = jest.requireActual("react-native");
+  return { __esModule: true, default: (props: Record<string, unknown>) => <View {...props} /> };
+});

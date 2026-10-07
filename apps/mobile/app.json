@@ -18,7 +18,7 @@
     "android": {
       "package": "com.streetleaf.sllights",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F7F7",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

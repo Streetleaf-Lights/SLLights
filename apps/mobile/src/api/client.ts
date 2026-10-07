@@ -2,11 +2,14 @@ import {
   MOBILE_API,
   mobileCustomerPath,
   mobilePolePath,
+  mobilePoleRemotePath,
   mobilePoleVitalsPath,
   mobileProjectPath,
   type CustomerListResponse,
   type CustomerOverviewResponse,
+  type LightCommandResponse,
   type PoleDetailResponse,
+  type PoleRemoteResponse,
   type PoleVitalsResponse,
   type ProjectDetailResponse,
   type CreatePoleIssueRequest,
@@ -151,6 +154,20 @@ export function createApiClient({
     getPoleVitals(customerId: string, projectId: string, poleId: string, days: number) {
       return request<PoleVitalsResponse>(mobilePoleVitalsPath(customerId, projectId, poleId, days), {
         method: "GET",
+        auth: true,
+      });
+    },
+
+    /** The pole's Leadsun remote-control identity and live ON/OFF state (null when it has none). */
+    getPoleRemote(customerId: string, projectId: string, poleId: string) {
+      return request<PoleRemoteResponse>(mobilePoleRemotePath(customerId, projectId, poleId), { method: "GET", auth: true });
+    },
+
+    /** Switches this pole's light. The server picks the lamp; only brightness and time are sent. */
+    sendLightCommand(customerId: string, projectId: string, poleId: string, command: { brightness: number; time: number }) {
+      return request<LightCommandResponse>(mobilePoleRemotePath(customerId, projectId, poleId), {
+        method: "POST",
+        body: command,
         auth: true,
       });
     },

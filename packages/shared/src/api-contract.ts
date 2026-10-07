@@ -1,4 +1,5 @@
 import type { PoleStatusCard, ToneText } from "./pole-detail";
+import type { LampState } from "./remote-control";
 import type { AuthUser, PoleIssue, PoleSummary, PoleVitalPeriod } from "./types";
 
 /**
@@ -72,6 +73,36 @@ export const mobilePoleVitalsPath = (customerId: string, projectId: string, pole
  */
 export interface PoleVitalsResponse {
   vitals: PoleVitalPeriod[];
+}
+
+export const mobilePoleRemotePath = (customerId: string, projectId: string, poleId: string) =>
+  `${mobilePolePath(customerId, projectId, poleId)}/remote`;
+
+/**
+ * GET …/poles/{poleId}/remote — the pole's Leadsun remote-control identity
+ * and live lamp state; `remote` is null when the pole has no Leadsun
+ * product (no remote control, as on the web).
+ *
+ * POST …/poles/{poleId}/remote with a LightCommand ({ brightness, time })
+ * switches THIS pole's light. The server works out which Leadsun lamp that
+ * is; the app can't name any other pole, gateway or project.
+ */
+export interface PoleRemoteResponse {
+  remote: {
+    /** Leadsun's ProductName for the pole (matches its locationId). */
+    productName: string;
+    /** Leadsun's device id. */
+    providedProductId: string;
+    gatewayName: string | null;
+    lamp: LampState;
+    /** Set when live status couldn't be read (lamp is then "unknown"). */
+    statusError: string | null;
+  } | null;
+}
+
+export interface LightCommandResponse {
+  success: true;
+  message: string;
 }
 
 /** GET /api/mobile/customers — Streetleaf staff only (403 for customer-scoped users). Active customers, by name. */
@@ -148,6 +179,8 @@ export interface PoleDetailResponse {
     overallStatusText?: string | null;
     cards: PoleStatusCard[];
     issues: PoleIssue[];
+    /** True when the pole is matched to a Leadsun product — the web shows its Remote Control button then. */
+    hasRemoteControl: boolean;
   };
 }
 

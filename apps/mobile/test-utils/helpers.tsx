@@ -26,6 +26,8 @@ export function fakeApi(overrides: Partial<Record<keyof ApiClient, jest.Mock>> =
     getProject: jest.fn(),
     getPoleDetail: jest.fn(),
     getPoleVitals: jest.fn().mockResolvedValue({ vitals: [] }),
+    getPoleRemote: jest.fn().mockResolvedValue({ remote: null }),
+    sendLightCommand: jest.fn().mockResolvedValue({ success: true, message: "Request successful" }),
     lookupPole: jest.fn().mockResolvedValue({ pole: null }),
     createPoleIssue: jest.fn().mockResolvedValue({ success: true }),
     submitPoleInstall: jest.fn().mockResolvedValue({ success: true }),
@@ -91,6 +93,7 @@ export function makePoleDetail(viewerScoped: boolean, pole: PoleVital = makePole
       ...(viewerScoped ? {} : { overallStatusText: pole.overallStatusText }),
       cards: buildPoleStatusCards(pole, viewerScoped),
       issues: pole.poleIssues,
+      hasRemoteControl: false,
     },
   };
 }

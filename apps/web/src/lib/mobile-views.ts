@@ -5,6 +5,7 @@ import {
   type PoleDetailResponse,
   type ProjectDetailResponse,
 } from "@sllights/shared/api-contract";
+import { findLeadsunProduct } from "@sllights/shared/leadsun";
 import { buildPoleStatusCards, connectionStatusTone } from "@sllights/shared/pole-detail";
 import { isCustomerScoped } from "@sllights/shared/auth-role";
 import { formatFullAddress } from "@sllights/shared/format";
@@ -107,6 +108,7 @@ export function toPoleDetail(
       ...(viewerScoped ? {} : { overallStatusText: pole.overallStatusText }),
       cards: buildPoleStatusCards(pole, viewerScoped),
       issues: pole.poleIssues ?? [],
+      hasRemoteControl: findLeadsunProduct(project.leadsunProject, pole.locationId) !== undefined,
     },
   };
 }

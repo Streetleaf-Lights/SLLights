@@ -151,3 +151,23 @@ describe("successful responses that aren't JSON", () => {
     await expect(api.listCustomers()).rejects.toBeInstanceOf(ApiError);
   });
 });
+
+describe("remote control calls", () => {
+  it("read and command the pole's own remote route, sending only brightness and time", async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(response(200, { remote: null }));
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl });
+    api.setToken("jwt");
+
+    await api.getPoleRemote("c1", "p1", "pole 1");
+    fetchImpl.mockResolvedValueOnce(response(200, { success: true, message: "ok" }));
+    await api.sendLightCommand("c1", "p1", "pole 1", { brightness: 0, time: 30 });
+
+    const [[getUrl, getInit], [postUrl, postInit]] = fetchImpl.mock.calls;
+    expect(getUrl).toBe("https://x.test/api/mobile/customers/c1/projects/p1/poles/pole%201/remote");
+    expect(getInit.method).toBe("GET");
+    expect(postUrl).toBe(getUrl);
+    expect(postInit.method).toBe("POST");
+    expect(JSON.parse(postInit.body)).toEqual({ brightness: 0, time: 30 });
+    expect(postInit.headers.Authorization).toBe("Bearer jwt");
+  });
+});
