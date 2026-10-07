@@ -4,11 +4,15 @@ import type { UserRow } from "@sllights/shared/api-contract";
 import { paginate } from "@sllights/shared/pagination";
 import type { UserStatus } from "@sllights/shared/users";
 import { useApiQuery } from "@/api/useApiQuery";
-import { useAuth } from "@/auth/AuthProvider";
+import { canManageUsers } from "@sllights/shared/users";
+import { useAuth, useSignedInUser } from "@/auth/AuthProvider";
+import { PillButton } from "@/ui/PillButton";
+import { Banner } from "@/ui/Banner";
 import { Pagination } from "@/ui/Pagination";
 import { QueryStatus } from "@/ui/QueryStatus";
 import { SearchField } from "@/ui/SearchField";
 import { colors, radius, space, type } from "@/ui/theme";
+import { InviteUserForm } from "./InviteUserForm";
 import { TransferOwnershipForm } from "./TransferOwnershipForm";
 
 type RowResult = { tone: "ok" | "error"; message: string };
@@ -22,6 +26,7 @@ type RowResult = { tone: "ok" | "error"; message: string };
  */
 export function UsersListView() {
   const { api } = useAuth();
+  const { claims } = useSignedInUser();
   const load = useCallback(() => api.listUsers(), [api]);
   const { state, retry, refresh } = useApiQuery(load);
   const [query, setQuery] = useState("");
@@ -30,6 +35,8 @@ export function UsersListView() {
   const [results, setResults] = useState<Record<string, RowResult>>({});
   // The Owner row whose Transfer Ownership form is open, if any.
   const [transferFor, setTransferFor] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState<string | null>(null);
   const listRef = useRef<FlatList<UserRow>>(null);
 
   const users = useMemo(() => {
@@ -81,6 +88,37 @@ export function UsersListView() {
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} tintColor={colors.accentStrong} />}
       ListHeaderComponent={
         <View style={styles.header}>
+          {/* As on the web: Invite User for those who manage users. */}
+          {canManageUsers(claims.role) && !inviting ? (
+            <View style={styles.headerAction}>
+              <PillButton
+                label="Invite User"
+                icon="person-add-outline"
+                onPress={() => {
+                  setInviteResult(null);
+                  setInviting(true);
+                }}
+              />
+            </View>
+          ) : null}
+          {inviting ? (
+            <InviteUserForm
+              customersWithOwner={
+                new Set(
+                  state.data.users
+                    .filter((u) => u.roleLabel === "Customer Owner" || u.roleLabel === "Owner")
+                    .map((u) => u.customerId ?? ""),
+                )
+              }
+              onCancel={() => setInviting(false)}
+              onSent={(message) => {
+                setInviting(false);
+                setInviteResult(message);
+                refresh(); // the invitee appears as Pending
+              }}
+            />
+          ) : null}
+          {inviteResult ? <Banner tone="success" message={inviteResult} /> : null}
           <SearchField
             value={query}
             onChangeText={(text) => {
@@ -250,6 +288,7 @@ function Action({
 const styles = StyleSheet.create({
   content: { padding: space.lg, paddingBottom: space.xxl },
   header: { gap: space.sm, marginBottom: space.md },
+  headerAction: { alignItems: "flex-end" },
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,

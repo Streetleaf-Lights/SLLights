@@ -33,6 +33,7 @@ export function fakeApi(overrides: Partial<Record<keyof ApiClient, jest.Mock>> =
     changeUserRole: jest.fn().mockResolvedValue({ roleLabel: "Admin" }),
     deleteUser: jest.fn().mockResolvedValue({ success: true }),
     transferOwnership: jest.fn().mockResolvedValue({ success: true, customerName: "Coastal Power" }),
+    inviteUser: jest.fn().mockResolvedValue({ success: true, role: "User", customerName: null }),
     listPoles: jest.fn().mockResolvedValue({ rows: [], page: 1, totalPages: 1, totalItems: 0, firstItem: 0, lastItem: 0 }),
     sendProjectLightCommand: jest.fn().mockResolvedValue({ success: true, message: "Request successful" }),
     sendLightCommand: jest.fn().mockResolvedValue({ success: true, message: "Request successful" }),

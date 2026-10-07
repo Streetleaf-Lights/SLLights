@@ -192,6 +192,8 @@ export interface UserRow {
   status: UserStatus;
   /** Streetleaf staff only (the web's Customer column); absent for customer-scoped viewers. */
   customerName?: string | null;
+  /** The user's customer (null for Streetleaf staff) — lets the invite form tell whether a customer already has an Owner. */
+  customerId: string | null;
   actions: UserActions;
 }
 
@@ -204,6 +206,27 @@ export interface UserRow {
  */
 export interface UsersResponse {
   users: UserRow[];
+}
+
+/**
+ * POST /api/mobile/users/invite { name, email, role, customerId? } — the
+ * web's Invite User. A Customer Admin/Owner's invite always goes to their
+ * own customer; the role must be one inviteRoleOptions allows the viewer
+ * for that customer context; a Streetleaf Admin's customer must exist.
+ */
+export interface InviteUserRequest {
+  name: string;
+  email: string;
+  role: string;
+  /** Streetleaf Admin only; ignored for Customer Admins/Owners. Omit for a Streetleaf invite. */
+  customerId?: string;
+}
+
+export interface InviteUserResponse {
+  success: true;
+  role: string;
+  /** The customer the invite went to (null for a Streetleaf invite). */
+  customerName: string | null;
 }
 
 export interface ChangeRoleResponse {

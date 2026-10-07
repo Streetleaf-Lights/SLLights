@@ -17,6 +17,8 @@ import {
   type ProjectRemoteResponse,
   type ChangeRoleResponse,
   type TransferOwnershipResponse,
+  type InviteUserRequest,
+  type InviteUserResponse,
   type UsersResponse,
   type PoleVitalsResponse,
   type ProjectDetailResponse,
@@ -246,6 +248,11 @@ export function createApiClient({
         body: newOwner,
         auth: true,
       });
+    },
+
+    /** The web's Invite User; the server enforces the customer and role rules. */
+    inviteUser(invite: InviteUserRequest) {
+      return request<InviteUserResponse>(`${MOBILE_API.users}/invite`, { method: "POST", body: invite, auth: true });
     },
 
     deleteUser(userId: string) {

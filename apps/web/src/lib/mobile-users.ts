@@ -14,6 +14,7 @@ export function toUserRow(user: User, viewer: SessionUser): UserRow {
     roleLabel: userRoleLabel(user.role, viewerScoped),
     status: userStatus(user.status),
     ...(viewerScoped ? {} : { customerName: user.customerName }),
+    customerId: user.customerId,
     actions: userActions(viewer, user),
   };
 }

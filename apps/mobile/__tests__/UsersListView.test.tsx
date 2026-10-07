@@ -192,6 +192,13 @@ describe("UsersListView", () => {
       expect(screen.getByLabelText("Email")).toBeTruthy();
     });
 
+    it("flags a bad email even before the name is filled in", async () => {
+      await renderUsers([owner()]);
+      await fireEvent.press(await screen.findByRole("button", { name: "Transfer Ownership" }));
+      await fireEvent.changeText(form().getByLabelText("Email"), "nia@coastal");
+      expect(form().getByText("Enter a valid email address.")).toBeTruthy();
+    });
+
     it("closes on Cancel without sending", async () => {
       const api = await renderUsers([owner()]);
       await fireEvent.press(await screen.findByRole("button", { name: "Transfer Ownership" }));

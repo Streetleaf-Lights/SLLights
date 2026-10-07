@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { validateNewOwner } from "@sllights/shared/users";
+import { INVITE_EMAIL_PATTERN, validateNewOwner } from "@sllights/shared/users";
 import { useAuth } from "@/auth/AuthProvider";
 import { Banner } from "@/ui/Banner";
 import { Button } from "@/ui/Button";
@@ -67,7 +67,8 @@ export function TransferOwnershipForm({
         keyboardType="email-address"
         textContentType="emailAddress"
       />
-      {email.trim() !== "" && !valid.ok && valid.error === "Enter a valid email address." ? (
+      {/* Checked on its own, so a bad email shows even before the name is typed. */}
+      {email.trim() !== "" && !INVITE_EMAIL_PATTERN.test(email.trim()) ? (
         <Text style={styles.error}>Enter a valid email address.</Text>
       ) : null}
       <Banner tone="warning" message="This transfers ownership — once accepted, the current Customer Owner is removed." />

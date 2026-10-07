@@ -107,3 +107,32 @@ describe("Transfer Ownership", () => {
     expect(validateNewOwner(null)).toMatchObject({ ok: false });
   });
 });
+
+import { inviteRoleOptions, isStreetleafCustomerName } from "../users";
+
+describe("Invite User rules (as the web form)", () => {
+  it("offers roles by who is inviting and whether a customer is chosen, default first", () => {
+    expect(inviteRoleOptions("Customer Admin", true)).toEqual(["Customer Admin", "User"]);
+    expect(inviteRoleOptions("Customer Owner", true)).toEqual(["Customer Admin", "User", "Customer Owner"]);
+    expect(inviteRoleOptions("Streetleaf Admin", true)).toEqual(["Customer Admin", "User", "Customer Owner"]);
+    expect(inviteRoleOptions("Streetleaf Admin", false)).toEqual(["Streetleaf Admin", "User"]);
+  });
+
+  it("never lets a customer's admin or owner grant Streetleaf Admin", () => {
+    expect(inviteRoleOptions("Customer Admin", false)).not.toContain("Streetleaf Admin");
+    expect(inviteRoleOptions("Customer Owner", false)).not.toContain("Streetleaf Admin");
+  });
+
+  it("gives everyone else nothing", () => {
+    expect(inviteRoleOptions("User", true)).toEqual([]);
+    expect(inviteRoleOptions("Streetleaf Crew", false)).toEqual([]);
+    expect(inviteRoleOptions(null, false)).toEqual([]);
+  });
+
+  it("treats the 'Streetleaf' customer record (with its trailing space) as Streetleaf itself", () => {
+    expect(isStreetleafCustomerName("Streetleaf ")).toBe(true);
+    expect(isStreetleafCustomerName("Streetleaf")).toBe(true);
+    expect(isStreetleafCustomerName("Streetleaf Lighting")).toBe(false);
+    expect(isStreetleafCustomerName(null)).toBe(false);
+  });
+});

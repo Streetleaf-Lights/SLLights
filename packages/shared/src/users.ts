@@ -86,3 +86,30 @@ export function validateNewOwner(
   if (!INVITE_EMAIL_PATTERN.test(trimmedEmail)) return { ok: false, error: "Enter a valid email address." };
   return { ok: true, value: { name: trimmedName, email: trimmedEmail } };
 }
+
+/**
+ * A customer record named "Streetleaf" stands for Streetleaf itself: picking
+ * it in the invite form means a Streetleaf (no-customer) invite, as on the
+ * web. Trimmed — the real record's name has a trailing space.
+ */
+export function isStreetleafCustomerName(name: string | null | undefined): boolean {
+  return (name ?? "").trim() === "Streetleaf";
+}
+
+/**
+ * The roles an invite may grant, in the order the form offers them (default
+ * first), exactly as the web Invite User form:
+ *  - Customer Admin / Owner (always their own customer): Customer Admin,
+ *    User — plus Customer Owner for an Owner (handing over ownership);
+ *  - Streetleaf Admin with a customer chosen: Customer Admin, User,
+ *    Customer Owner; with no customer: Streetleaf Admin, User;
+ *  - anyone else: nothing (they can't invite).
+ */
+export function inviteRoleOptions(viewerRole: string | null | undefined, hasCustomer: boolean): string[] {
+  if (viewerRole === "Customer Owner") return ["Customer Admin", "User", "Customer Owner"];
+  if (viewerRole === "Customer Admin") return ["Customer Admin", "User"];
+  if (viewerRole === "Streetleaf Admin") {
+    return hasCustomer ? ["Customer Admin", "User", "Customer Owner"] : ["Streetleaf Admin", "User"];
+  }
+  return [];
+}

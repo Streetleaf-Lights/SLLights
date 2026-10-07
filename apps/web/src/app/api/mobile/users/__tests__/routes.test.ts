@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { testToken } from "@/testing/testToken";
 
-const { usersMock, deleteMock, reinviteMock, changeRoleMock, revalidateMock, inviteMock } = vi.hoisted(() => ({
+const { usersMock, deleteMock, reinviteMock, changeRoleMock, revalidateMock, inviteMock, customersMock } = vi.hoisted(() => ({
+  customersMock: vi.fn(),
   inviteMock: vi.fn(),
   usersMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("@/lib/apim", async () => {
     resendInvite: reinviteMock,
     changeRole: changeRoleMock,
     inviteUser: inviteMock,
+    getCustomers: customersMock,
   };
 });
 
@@ -30,6 +32,7 @@ import { DELETE } from "@/app/api/mobile/users/[userId]/route";
 import { POST as REINVITE } from "@/app/api/mobile/users/[userId]/reinvite/route";
 import { POST as CHANGE_ROLE } from "@/app/api/mobile/users/[userId]/role/route";
 import { POST as TRANSFER } from "@/app/api/mobile/users/[userId]/transfer-ownership/route";
+import { POST as INVITE } from "@/app/api/mobile/users/invite/route";
 
 const exp = Math.floor(Date.now() / 1000) + 3600;
 const token = (sub: string, role: string, customerId?: string) => testToken({ sub, role, exp, ...(customerId ? { customerId } : {}) });
@@ -68,7 +71,7 @@ describe("GET /api/mobile/users", () => {
   it("shows Streetleaf staff everyone, with the Customer column and full role names", async () => {
     const body = await (await GET(req(sa))).json();
     expect(body.users).toHaveLength(5);
-    expect(body.users[1]).toMatchObject({ roleLabel: "Customer Admin", customerName: "Coastal", status: "active" });
+    expect(body.users[1]).toMatchObject({ roleLabel: "Customer Admin", customerName: "Coastal", customerId: "c1", status: "active" });
   });
 
   it("shows a customer's people only their own customer, with short role names and no Customer column", async () => {
@@ -221,5 +224,103 @@ describe("POST …/users/{ownerId}/transfer-ownership", () => {
     const res = await transfer(owner1, "own1", newOwner);
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("A user with that email already exists.");
+  });
+});
+
+describe("POST /api/mobile/users/invite", () => {
+  const invite = (t: string | null, body: unknown) =>
+    INVITE(
+      new NextRequest("http://localhost/api/mobile/users/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(t ? { authorization: `Bearer ${t}` } : {}) },
+        body: typeof body === "string" ? body : JSON.stringify(body),
+      }),
+    );
+  const person = { name: " Nia New ", email: " nia@x.com " };
+
+  beforeEach(() => {
+    inviteMock.mockResolvedValue({ userId: "new" });
+    customersMock.mockResolvedValue([
+      { id: "c1", name: "Coastal" },
+      { id: "c2", name: "Harbor" },
+      { id: "sl", name: "Streetleaf " },
+    ]);
+  });
+  afterEach(() => {
+    inviteMock.mockReset();
+    customersMock.mockReset();
+  });
+
+  it("lets a Customer Admin invite an Admin or User into their own customer", async () => {
+    const res = await invite(ca1, { ...person, role: "User" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: true, role: "User", customerName: null });
+    expect(inviteMock).toHaveBeenCalledWith({ name: "Nia New", email: "nia@x.com", role: "User", customerId: "c1" }, ca1);
+    expect(revalidateMock).toHaveBeenCalledWith("users", { expire: 0 });
+  });
+
+  it("always invites a Customer Admin/Owner's people into their own customer, ignoring any customerId sent", async () => {
+    await invite(ca1, { ...person, role: "Customer Admin", customerId: "c2" });
+    expect(inviteMock).toHaveBeenCalledWith(expect.objectContaining({ customerId: "c1" }), ca1);
+    expect(customersMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses roles outside the viewer's options — no escalation", async () => {
+    expect((await invite(ca1, { ...person, role: "Streetleaf Admin" })).status).toBe(403);
+    expect((await invite(ca1, { ...person, role: "Customer Owner" })).status).toBe(403); // only Owners/SA may
+    expect((await invite(owner1, { ...person, role: "Streetleaf Admin" })).status).toBe(403);
+    expect((await invite(ca1, { ...person, role: "Streetleaf Crew" })).status).toBe(403);
+    expect(inviteMock).not.toHaveBeenCalled();
+  });
+
+  it("lets a Customer Owner invite a new Owner for their own customer", async () => {
+    expect((await invite(owner1, { ...person, role: "Customer Owner" })).status).toBe(200);
+    expect(inviteMock).toHaveBeenCalledWith(expect.objectContaining({ role: "Customer Owner", customerId: "c1" }), owner1);
+  });
+
+  it("lets a Streetleaf Admin invite into a chosen customer", async () => {
+    const res = await invite(sa, { ...person, role: "Customer Owner", customerId: "c2" });
+    expect(await res.json()).toEqual({ success: true, role: "Customer Owner", customerName: "Harbor" });
+    expect(inviteMock).toHaveBeenCalledWith(expect.objectContaining({ role: "Customer Owner", customerId: "c2" }), sa);
+  });
+
+  it("makes a Streetleaf Admin's invite with no customer (or the 'Streetleaf' record) a Streetleaf invite", async () => {
+    await invite(sa, { ...person, role: "Streetleaf Admin" });
+    expect(inviteMock).toHaveBeenLastCalledWith({ name: "Nia New", email: "nia@x.com", role: "Streetleaf Admin" }, sa);
+    await invite(sa, { ...person, role: "Streetleaf Admin", customerId: "sl" });
+    expect(inviteMock).toHaveBeenLastCalledWith({ name: "Nia New", email: "nia@x.com", role: "Streetleaf Admin" }, sa);
+  });
+
+  it("matches roles to the customer context for a Streetleaf Admin", async () => {
+    expect((await invite(sa, { ...person, role: "Customer Admin" })).status).toBe(403); // no customer chosen
+    expect((await invite(sa, { ...person, role: "Streetleaf Admin", customerId: "c1" })).status).toBe(403); // customer chosen
+    expect(inviteMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a customer that isn't an active customer", async () => {
+    expect((await invite(sa, { ...person, role: "Customer Admin", customerId: "gone" })).status).toBe(400);
+    expect(inviteMock).not.toHaveBeenCalled();
+  });
+
+  it("403s plain Users, and 401s without a valid token", async () => {
+    expect((await invite(user1, { ...person, role: "User" })).status).toBe(403);
+    expect((await invite(null, { ...person, role: "User" })).status).toBe(401);
+    expect((await invite(expired, { ...person, role: "User" })).status).toBe(401);
+    expect(inviteMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["malformed JSON", "{nope"],
+    ["no name", { name: "", email: "nia@x.com", role: "User" }],
+    ["bad email", { name: "Nia", email: "nia@x", role: "User" }],
+    ["no role", { name: "Nia", email: "nia@x.com" }],
+  ])("400s %s", async (_l, body) => {
+    expect((await invite(ca1, body)).status).toBe(400);
+    expect(inviteMock).not.toHaveBeenCalled();
+  });
+
+  it("passes APIM's own refusal through", async () => {
+    inviteMock.mockRejectedValueOnce(new ApimError("A user with that email already exists.", 409));
+    expect((await invite(ca1, { ...person, role: "User" })).status).toBe(409);
   });
 });
