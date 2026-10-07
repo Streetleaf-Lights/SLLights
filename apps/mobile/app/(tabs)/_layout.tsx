@@ -8,7 +8,7 @@ import { colors } from "@/ui/theme";
 
 /**
  * Each tab holds its own stack — (home): list → customer → project → pole;
- * (poles): all poles → pole; (scan): scanner → pole — so the bottom nav stays visible on every screen,
+ * (poles): all poles → pole; (scan): scanner → pole; (account): account → users — so the bottom nav stays visible on every screen,
  * each tab keeps its place when you switch, and tapping the current tab
  * returns to its first screen. The pole screen lives in (home,scan) so both
  * stacks share it.
@@ -59,9 +59,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="account"
+        name="(account)"
         options={{
           title: "Account",
+          // The tab's stack draws its own header.
+          headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" color={color} size={size} />,
         }}
       />

@@ -1,5 +1,6 @@
 import type { PoleStatusCard, ToneText } from "./pole-detail";
 import type { LampState } from "./remote-control";
+import type { UserActions, UserStatus } from "./users";
 import type { AuthUser, PoleIssue, PoleSummary, PoleVitalPeriod } from "./types";
 
 /**
@@ -22,6 +23,7 @@ export const MOBILE_API = {
   myCustomer: "/api/mobile/customer",
   customers: "/api/mobile/customers",
   poles: "/api/mobile/poles",
+  users: "/api/mobile/users",
   poleInstall: "/api/mobile/poleinstall",
   createPoleIssue: "/api/createpoleissue",
 } as const;
@@ -176,6 +178,36 @@ export interface PoleListResponse {
   lastItem: number;
   /** Faults view, staff only: the customer's name (the web's Customer column). */
   customerName?: string | null;
+}
+
+export const mobileUserPath = (userId: string) => `${MOBILE_API.users}/${encodeURIComponent(userId)}`;
+
+/** One row of the Users list (the web's UsersTable), with the viewer's allowed actions. */
+export interface UserRow {
+  id: string;
+  name: string;
+  email: string;
+  /** "Admin"/"Owner" for customer-scoped viewers, the full role otherwise (as the web). */
+  roleLabel: string;
+  status: UserStatus;
+  /** Streetleaf staff only (the web's Customer column); absent for customer-scoped viewers. */
+  customerName?: string | null;
+  actions: UserActions;
+}
+
+/**
+ * GET /api/mobile/users — the people the viewer may see (everyone for
+ * Streetleaf staff, their own customer's otherwise). POST
+ * …/users/{id}/reinvite and …/users/{id}/role, and DELETE …/users/{id},
+ * are refused unless the shared userActions rules allow that viewer that
+ * action on that user.
+ */
+export interface UsersResponse {
+  users: UserRow[];
+}
+
+export interface ChangeRoleResponse {
+  roleLabel: string;
 }
 
 /** GET /api/mobile/customers — Streetleaf staff only (403 for customer-scoped users). Active customers, by name. */

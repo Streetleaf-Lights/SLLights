@@ -4,6 +4,7 @@ import {
   mobilePolePath,
   mobilePoleRemotePath,
   mobileProjectRemotePath,
+  mobileUserPath,
   mobilePoleVitalsPath,
   mobileProjectPath,
   type CustomerListResponse,
@@ -14,6 +15,8 @@ import {
   type PoleListResponse,
   type PoleRemoteResponse,
   type ProjectRemoteResponse,
+  type ChangeRoleResponse,
+  type UsersResponse,
   type PoleVitalsResponse,
   type ProjectDetailResponse,
   type CreatePoleIssueRequest,
@@ -29,6 +32,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number | null,
+    /** The request was abandoned for taking too long (the server never answered in time). */
+    public readonly timedOut = false,
   ) {
     super(message);
     this.name = "ApiError";
@@ -48,6 +53,9 @@ export interface ApiClientOptions {
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 
+/** The Poles list's longer allowance; everything else uses the client's default (20 s). */
+export const POLE_LIST_TIMEOUT_MS = 60_000;
+
 export function createApiClient({
   baseUrl,
   fetchImpl = fetch,
@@ -59,7 +67,7 @@ export function createApiClient({
   const unauthorizedListeners = new Set<() => void>();
   async function request<T>(
     path: string,
-    init: { method: "GET" | "POST"; body?: unknown; auth: boolean },
+    init: { method: "GET" | "POST" | "DELETE"; body?: unknown; auth: boolean; timeoutMs?: number },
   ): Promise<T> {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (init.body !== undefined) headers["Content-Type"] = "application/json";
@@ -69,7 +77,11 @@ export function createApiClient({
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, init.timeoutMs ?? timeoutMs);
     let res: Response;
     try {
       res = await fetchImpl(`${baseUrl}${path}`, {
@@ -79,7 +91,10 @@ export function createApiClient({
         signal: controller.signal,
       });
     } catch {
-      throw new ApiError("No connection. Check your signal and try again.", null);
+      // Our own timeout aborting the request is not the same as no signal.
+      throw timedOut
+        ? new ApiError("The server took too long to respond. Please try again.", null, true)
+        : new ApiError("No connection. Check your signal and try again.", null);
     } finally {
       clearTimeout(timer);
     }
@@ -202,7 +217,29 @@ export function createApiClient({
         if (query.faults.projectId) params.push(["projectId", query.faults.projectId]);
       }
       const qs = params.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
-      return request<PoleListResponse>(`${MOBILE_API.poles}${qs ? `?${qs}` : ""}`, { method: "GET", auth: true });
+      return request<PoleListResponse>(`${MOBILE_API.poles}${qs ? `?${qs}` : ""}`, {
+        method: "GET",
+        auth: true,
+        // For staff, the server's first (uncached) load fetches every pole from APIM.
+        timeoutMs: POLE_LIST_TIMEOUT_MS,
+      });
+    },
+
+    /** The people the viewer may see, each with the viewer's allowed actions. */
+    listUsers() {
+      return request<UsersResponse>(MOBILE_API.users, { method: "GET", auth: true });
+    },
+
+    reinviteUser(userId: string) {
+      return request<{ success: true }>(`${mobileUserPath(userId)}/reinvite`, { method: "POST", auth: true });
+    },
+
+    changeUserRole(userId: string) {
+      return request<ChangeRoleResponse>(`${mobileUserPath(userId)}/role`, { method: "POST", auth: true });
+    },
+
+    deleteUser(userId: string) {
+      return request<{ success: true }>(mobileUserPath(userId), { method: "DELETE", auth: true });
     },
 
     lookupPole(poleNumber: string) {

@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react-native";
-import AccountScreen from "../app/(tabs)/account";
+import AccountScreen from "../app/(tabs)/(account)/account";
 import { sessionStore } from "@/auth/sessionStore";
 import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
 

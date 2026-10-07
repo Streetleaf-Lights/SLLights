@@ -2,7 +2,9 @@ import { Stack } from "expo-router";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { renderRouter as renderRouterSync } from "expo-router/testing-library";
 import * as TabsLayout from "../app/(tabs)/_layout";
-import * as Account from "../app/(tabs)/account";
+import * as Account from "../app/(tabs)/(account)/account";
+import * as AccountLayout from "../app/(tabs)/(account)/_layout";
+import * as Users from "../app/(tabs)/(account)/users";
 import * as HomeLayout from "../app/(tabs)/(home)/_layout";
 import * as HomeIndex from "../app/(tabs)/(home)/index";
 import * as Customer from "../app/(tabs)/(home)/customer/[customerId]";
@@ -48,7 +50,9 @@ async function renderRouter(...args: Parameters<typeof renderRouterSync>) {
 const routes = {
   _layout: () => <Stack screenOptions={{ headerShown: false }} />,
   "(tabs)/_layout": TabsLayout,
-  "(tabs)/account": Account,
+  "(tabs)/(account)/_layout": AccountLayout,
+  "(tabs)/(account)/account": Account,
+  "(tabs)/(account)/users": Users,
   "(tabs)/(home)/_layout": HomeLayout,
   "(tabs)/(home)/index": HomeIndex,
   "(tabs)/(home)/customer/[customerId]": Customer,
@@ -164,5 +168,13 @@ describe("navigation inside the tabs", () => {
     await waitFor(() => expect(router.getSegments()).toEqual(["(tabs)", "(home)", "faults"]));
     await fireEvent.press(await screen.findByRole("button", { name: /^Pole PAS-1/ }));
     await waitFor(() => expect(router.getPathname()).toBe("/project/c1/p1/pole/pole1"));
+  });
+
+  it("opens Users from the Account tab, inside that tab", async () => {
+    await signIn("Streetleaf Admin", null);
+    const router = await renderRouter(routes, { initialUrl: "/account", wrapper: withSignedInAuth(api()) });
+    await fireEvent.press(await screen.findByRole("button", { name: "Users" }));
+    await waitFor(() => expect(router.getSegments()).toEqual(["(tabs)", "(account)", "users"]));
+    await expectTabBar("Customers", "Poles", "Account");
   });
 });

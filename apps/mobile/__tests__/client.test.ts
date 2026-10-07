@@ -187,3 +187,68 @@ describe("listPoles", () => {
     ]);
   });
 });
+
+describe("timeouts", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  /** A fetch that only ends when its request is aborted (a server that never answers). */
+  const hangingFetch = () =>
+    jest.fn(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => reject(new Error("Aborted")));
+        }),
+    );
+
+  it("says the server took too long, rather than 'No connection', when a request times out", async () => {
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl: hangingFetch() as unknown as typeof fetch });
+    api.setToken("jwt");
+    const pending = api.lookupPole("PAS-1").catch((e: unknown) => e);
+    jest.advanceTimersByTime(20_000);
+    const err = (await pending) as ApiError;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.message).toBe("The server took too long to respond. Please try again.");
+    expect(err.timedOut).toBe(true);
+  });
+
+  it("still says 'No connection' when the request fails outright", async () => {
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl: jest.fn().mockRejectedValue(new TypeError("Network request failed")) });
+    const err = (await api.signIn("a", "b").catch((e: unknown) => e)) as ApiError;
+    expect(err.message).toBe("No connection. Check your signal and try again.");
+    expect(err.timedOut).toBe(false);
+  });
+
+  it("gives the Poles list longer (its first load for staff fetches every pole on the server)", async () => {
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl: hangingFetch() as unknown as typeof fetch });
+    api.setToken("jwt");
+    let settled = false;
+    const pending = api.listPoles().catch((e: unknown) => {
+      settled = true;
+      return e;
+    });
+    jest.advanceTimersByTime(20_000);
+    await Promise.resolve();
+    expect(settled).toBe(false); // not cut off at the normal 20 s
+    jest.advanceTimersByTime(40_000);
+    expect(((await pending) as ApiError).timedOut).toBe(true); // but not forever: 60 s
+  });
+});
+
+describe("user calls", () => {
+  it("hit the users routes with the right methods", async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(response(200, {}));
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl });
+    api.setToken("jwt");
+    await api.listUsers();
+    await api.reinviteUser("u 1");
+    await api.changeUserRole("u 1");
+    await api.deleteUser("u 1");
+    expect(fetchImpl.mock.calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
+      "GET https://x.test/api/mobile/users",
+      "POST https://x.test/api/mobile/users/u%201/reinvite",
+      "POST https://x.test/api/mobile/users/u%201/role",
+      "DELETE https://x.test/api/mobile/users/u%201",
+    ]);
+  });
+});

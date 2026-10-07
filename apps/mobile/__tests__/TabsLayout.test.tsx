@@ -56,7 +56,7 @@ describe("Tabs", () => {
     expect(await screen.findByTestId("tab-(scan)")).toHaveTextContent("Scan|hidden");
     expect(screen.getByTestId("tab-(home)")).toHaveTextContent(`${home}|shown`);
     expect(screen.getByTestId("tab-(poles)")).toHaveTextContent("Poles|shown");
-    expect(screen.getByTestId("tab-account")).toHaveTextContent("Account|shown");
+    expect(screen.getByTestId("tab-(account)")).toHaveTextContent("Account|shown");
   });
 
   it("treats a Streetleaf User whose token says customerId: \"\" as Streetleaf (Customers home), still without Scan", async () => {

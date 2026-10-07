@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useAuth, useSignedInUser } from "@/auth/AuthProvider";
+import { ListRow } from "@/ui/ListRow";
 import { Button } from "@/ui/Button";
 import { colors, radius, space, type } from "@/ui/theme";
 
@@ -9,6 +11,7 @@ type CustomerLabel = string | null;
 
 export default function AccountScreen() {
   const { api, signOut } = useAuth();
+  const router = useRouter();
   const { user, claims } = useSignedInUser();
   const [signingOut, setSigningOut] = useState(false);
   const [customer, setCustomer] = useState<CustomerLabel>(claims.customerId ? null : "Streetleaf");
@@ -34,6 +37,11 @@ export default function AccountScreen() {
         <Row label="Role" value={claims.role} />
         <Row label="Customer" value={customer ?? "Loading…"} />
       </View>
+      {/* The web's Users page lives here on mobile. */}
+      <ListRow accessibilityLabel="Users" onPress={() => router.push("/users")}>
+        <Text style={styles.link}>Users</Text>
+        <Text style={type.small}>People with access to the dashboard</Text>
+      </ListRow>
       <Button
         label="Sign out"
         variant="secondary"
@@ -67,4 +75,5 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   row: { gap: 2 },
+  link: { fontSize: 17, fontWeight: "600", color: colors.ink },
 });
