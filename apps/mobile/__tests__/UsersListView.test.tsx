@@ -7,8 +7,9 @@ import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/h
 
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 
-const none = { reinvite: false, changeRole: false, delete: false };
-const all = { reinvite: true, changeRole: true, delete: true };
+const none = { reinvite: false, changeRole: false, delete: false, transferOwnership: false };
+const all = { reinvite: true, changeRole: true, delete: true, transferOwnership: false };
+const ownerActions = { reinvite: false, changeRole: false, delete: true, transferOwnership: true };
 const userRow = (n: number, extra: Record<string, unknown> = {}) => ({
   id: `u${n}`,
   name: `Person ${String(n).padStart(2, "0")}`,
@@ -77,7 +78,7 @@ describe("UsersListView", () => {
   it("shows only the actions the server allows on each row", async () => {
     await renderUsers([
       userRow(1, { actions: none }),
-      userRow(2, { actions: { reinvite: false, changeRole: false, delete: true } }),
+      userRow(2, { actions: { ...none, delete: true } }),
       userRow(3, { status: "pending", actions: all }),
     ]);
     await screen.findByText("Person 01");
@@ -134,5 +135,69 @@ describe("UsersListView", () => {
     });
     await fireEvent.press(await screen.findByRole("button", { name: "Change Role" }));
     expect(await screen.findByText("You can't do that for this user.")).toBeTruthy();
+  });
+
+  describe("Transfer Ownership", () => {
+    const owner = () => userRow(9, { name: "Olive Owner", roleLabel: "Customer Owner", actions: ownerActions });
+    const form = () => within(card("Olive Owner"));
+
+    it("is offered on an Owner's row when the server allows it, next to Delete", async () => {
+      await renderUsers([owner(), userRow(1, { actions: all })]);
+      await screen.findByText("Olive Owner");
+      expect(form().getAllByRole("button").map((b) => b.props.accessibilityLabel)).toEqual(["Transfer Ownership", "Delete"]);
+      expect(within(card("Person 01")).queryByRole("button", { name: "Transfer Ownership" })).toBeNull();
+    });
+
+    it("opens a form for the new owner, with the web's warning, and Send disabled until valid", async () => {
+      await renderUsers([owner()]);
+      await fireEvent.press(await screen.findByRole("button", { name: "Transfer Ownership" }));
+      expect(form().getByText("Invite the new Customer Owner for Coastal Power.")).toBeTruthy();
+      expect(form().getByText(/This transfers ownership/)).toBeTruthy();
+      const send = () => form().getByRole("button", { name: "Send invite" });
+      expect(send().props.accessibilityState.disabled).toBe(true);
+      await fireEvent.changeText(form().getByLabelText("Name"), "Nia New");
+      await fireEvent.changeText(form().getByLabelText("Email"), "nia@coastal");
+      expect(form().getByText("Enter a valid email address.")).toBeTruthy();
+      expect(send().props.accessibilityState.disabled).toBe(true);
+      await fireEvent.changeText(form().getByLabelText("Email"), "nia@coastal.com");
+      expect(send().props.accessibilityState.disabled).toBe(false);
+    });
+
+    it("sends only the new owner's name and email, confirms like the web, and refreshes", async () => {
+      const api = await renderUsers([owner()]);
+      await fireEvent.press(await screen.findByRole("button", { name: "Transfer Ownership" }));
+      await fireEvent.changeText(form().getByLabelText("Name"), "  Nia New ");
+      await fireEvent.changeText(form().getByLabelText("Email"), " nia@coastal.com ");
+      await fireEvent.press(form().getByRole("button", { name: "Send invite" }));
+
+      await waitFor(() => expect(api.transferOwnership).toHaveBeenCalledWith("u9", { name: "Nia New", email: "nia@coastal.com" }));
+      expect(
+        await screen.findByText(
+          "Invitation sent. Nia New was invited to become the new Customer Owner for Coastal Power. Once they accept, the current owner will be removed.",
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByLabelText("Email")).toBeNull(); // form closed
+      await waitFor(() => expect(api.listUsers).toHaveBeenCalledTimes(2));
+    });
+
+    it("keeps the form open with the server's error", async () => {
+      await renderUsers([owner()], {
+        transferOwnership: jest.fn().mockRejectedValue(new ApiError("A user with that email already exists.", 409)),
+      });
+      await fireEvent.press(await screen.findByRole("button", { name: "Transfer Ownership" }));
+      await fireEvent.changeText(form().getByLabelText("Name"), "Nia");
+      await fireEvent.changeText(form().getByLabelText("Email"), "nia@coastal.com");
+      await fireEvent.press(form().getByRole("button", { name: "Send invite" }));
+      expect(await screen.findByText("A user with that email already exists.")).toBeTruthy();
+      expect(screen.getByLabelText("Email")).toBeTruthy();
+    });
+
+    it("closes on Cancel without sending", async () => {
+      const api = await renderUsers([owner()]);
+      await fireEvent.press(await screen.findByRole("button", { name: "Transfer Ownership" }));
+      await fireEvent.press(form().getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByLabelText("Email")).toBeNull();
+      expect(api.transferOwnership).not.toHaveBeenCalled();
+    });
   });
 });

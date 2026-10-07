@@ -9,6 +9,7 @@ import { Pagination } from "@/ui/Pagination";
 import { QueryStatus } from "@/ui/QueryStatus";
 import { SearchField } from "@/ui/SearchField";
 import { colors, radius, space, type } from "@/ui/theme";
+import { TransferOwnershipForm } from "./TransferOwnershipForm";
 
 type RowResult = { tone: "ok" | "error"; message: string };
 
@@ -27,6 +28,8 @@ export function UsersListView() {
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, RowResult>>({});
+  // The Owner row whose Transfer Ownership form is open, if any.
+  const [transferFor, setTransferFor] = useState<string | null>(null);
   const listRef = useRef<FlatList<UserRow>>(null);
 
   const users = useMemo(() => {
@@ -108,7 +111,8 @@ export function UsersListView() {
       renderItem={({ item: user }) => {
         const result = results[user.id];
         const isBusy = (key: string) => busy === `${user.id}:${key}`;
-        const anyAction = user.actions.reinvite || user.actions.changeRole || user.actions.delete;
+        const anyAction =
+          user.actions.reinvite || user.actions.changeRole || user.actions.delete || user.actions.transferOwnership;
         return (
           <View style={styles.card} accessibilityLabel={`${user.name}, ${user.roleLabel}, ${user.status}`}>
             <View style={styles.top}>
@@ -151,6 +155,20 @@ export function UsersListView() {
                     }
                   />
                 ) : null}
+                {user.actions.transferOwnership ? (
+                  <Action
+                    label="Transfer Ownership"
+                    disabled={busy !== null || transferFor === user.id}
+                    onPress={() => {
+                      setResults((r) => {
+                        const next = { ...r };
+                        delete next[user.id]; // clear this row's previous message
+                        return next;
+                      });
+                      setTransferFor(user.id);
+                    }}
+                  />
+                ) : null}
                 {user.actions.delete ? (
                   <Action
                     label={isBusy("delete") ? "Deleting…" : "Delete"}
@@ -160,6 +178,18 @@ export function UsersListView() {
                   />
                 ) : null}
               </View>
+            ) : null}
+            {transferFor === user.id ? (
+              <TransferOwnershipForm
+                ownerId={user.id}
+                customerName={user.customerName}
+                onCancel={() => setTransferFor(null)}
+                onSent={(message) => {
+                  setTransferFor(null);
+                  setResults((r) => ({ ...r, [user.id]: { tone: "ok", message } }));
+                  refresh(); // the invited owner appears as Pending
+                }}
+              />
             ) : null}
             {result ? (
               <Text

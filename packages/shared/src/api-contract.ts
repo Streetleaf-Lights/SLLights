@@ -210,6 +210,17 @@ export interface ChangeRoleResponse {
   roleLabel: string;
 }
 
+/**
+ * POST …/users/{ownerId}/transfer-ownership { name, email } — invites a new
+ * Customer Owner for that Owner's customer; once they accept, APIM removes
+ * the current Owner. The customer and role are fixed by the server from
+ * the current Owner's record.
+ */
+export interface TransferOwnershipResponse {
+  success: true;
+  customerName: string | null;
+}
+
 /** GET /api/mobile/customers — Streetleaf staff only (403 for customer-scoped users). Active customers, by name. */
 export interface CustomerListResponse {
   customers: { id: string; name: string }[];

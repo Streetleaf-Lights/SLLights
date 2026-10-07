@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { testToken } from "@/testing/testToken";
 
-const { usersMock, deleteMock, reinviteMock, changeRoleMock, revalidateMock } = vi.hoisted(() => ({
+const { usersMock, deleteMock, reinviteMock, changeRoleMock, revalidateMock, inviteMock } = vi.hoisted(() => ({
+  inviteMock: vi.fn(),
   usersMock: vi.fn(),
   deleteMock: vi.fn(),
   reinviteMock: vi.fn(),
@@ -13,7 +14,14 @@ const { usersMock, deleteMock, reinviteMock, changeRoleMock, revalidateMock } = 
 vi.mock("next/cache", () => ({ revalidateTag: revalidateMock }));
 vi.mock("@/lib/apim", async () => {
   const actual = await vi.importActual<typeof import("@/lib/apim")>("@/lib/apim");
-  return { ...actual, getUsers: usersMock, deleteUser: deleteMock, resendInvite: reinviteMock, changeRole: changeRoleMock };
+  return {
+    ...actual,
+    getUsers: usersMock,
+    deleteUser: deleteMock,
+    resendInvite: reinviteMock,
+    changeRole: changeRoleMock,
+    inviteUser: inviteMock,
+  };
 });
 
 import { ApimError } from "@/lib/apim";
@@ -21,6 +29,7 @@ import { GET } from "@/app/api/mobile/users/route";
 import { DELETE } from "@/app/api/mobile/users/[userId]/route";
 import { POST as REINVITE } from "@/app/api/mobile/users/[userId]/reinvite/route";
 import { POST as CHANGE_ROLE } from "@/app/api/mobile/users/[userId]/role/route";
+import { POST as TRANSFER } from "@/app/api/mobile/users/[userId]/transfer-ownership/route";
 
 const exp = Math.floor(Date.now() / 1000) + 3600;
 const token = (sub: string, role: string, customerId?: string) => testToken({ sub, role, exp, ...(customerId ? { customerId } : {}) });
@@ -71,9 +80,9 @@ describe("GET /api/mobile/users", () => {
 
   it("includes each row's allowed actions", async () => {
     const byId = Object.fromEntries((await (await GET(req(ca1))).json()).users.map((u: { id: string; actions: unknown }) => [u.id, u.actions]));
-    expect(byId.ca1).toEqual({ reinvite: false, changeRole: false, delete: false }); // self
-    expect(byId.own1).toEqual({ reinvite: false, changeRole: false, delete: false }); // Owner, viewer isn't SA
-    expect(byId.u1).toEqual({ reinvite: true, changeRole: true, delete: true }); // pending user
+    expect(byId.ca1).toEqual({ reinvite: false, changeRole: false, delete: false, transferOwnership: false }); // self
+    expect(byId.own1).toEqual({ reinvite: false, changeRole: false, delete: false, transferOwnership: false }); // Owner, viewer isn't SA
+    expect(byId.u1).toEqual({ reinvite: true, changeRole: true, delete: true, transferOwnership: false }); // pending user
   });
 
   it("gives a plain User the list but no actions", async () => {
@@ -136,5 +145,81 @@ describe("user actions are enforced on the server", () => {
     const res = await act.role(owner1, "u1");
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/can change roles/);
+  });
+});
+
+describe("POST …/users/{ownerId}/transfer-ownership", () => {
+  const transfer = (t: string | null, ownerId: string, body: unknown) =>
+    TRANSFER(
+      new NextRequest(`http://localhost/api/mobile/users/${ownerId}/transfer-ownership`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(t ? { authorization: `Bearer ${t}` } : {}) },
+        body: typeof body === "string" ? body : JSON.stringify(body),
+      }),
+      ctx(ownerId),
+    );
+  const newOwner = { name: " Nia New ", email: " nia@coastal.com " };
+
+  beforeEach(() => {
+    inviteMock.mockResolvedValue({ userId: "new" });
+  });
+  afterEach(() => inviteMock.mockReset());
+
+  it("lets the Owner invite their replacement for their own customer", async () => {
+    const res = await transfer(owner1, "own1", newOwner);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: true, customerName: "Coastal" });
+    expect(inviteMock).toHaveBeenCalledWith(
+      { name: "Nia New", email: "nia@coastal.com", role: "Customer Owner", customerId: "c1" },
+      owner1,
+    );
+    expect(revalidateMock).toHaveBeenCalledWith("users", { expire: 0 });
+  });
+
+  it("lets a Streetleaf Admin transfer any customer's ownership", async () => {
+    expect((await transfer(sa, "own1", newOwner)).status).toBe(200);
+  });
+
+  it("ignores any customer or role named in the request", async () => {
+    await transfer(owner1, "own1", { ...newOwner, customerId: "c2", role: "Streetleaf Admin" });
+    expect(inviteMock).toHaveBeenCalledWith(expect.objectContaining({ role: "Customer Owner", customerId: "c1" }), owner1);
+  });
+
+  it("refuses a Customer Admin, a plain User, or a target who isn't an Owner — without inviting anyone", async () => {
+    expect((await transfer(ca1, "own1", newOwner)).status).toBe(403);
+    expect((await transfer(user1, "own1", newOwner)).status).toBe(403);
+    expect((await transfer(sa, "u1", newOwner)).status).toBe(403); // not an Owner
+    expect(inviteMock).not.toHaveBeenCalled();
+  });
+
+  it("404s an Owner of another customer, or an unknown user", async () => {
+    usersMock.mockResolvedValue([
+      ...people,
+      { id: "own2", name: "Other Owner", email: "o@c2.com", role: "Customer Owner", status: "Active", customerId: "c2", customerName: "Harbor" },
+    ]);
+    expect((await transfer(owner1, "own2", newOwner)).status).toBe(404);
+    expect((await transfer(owner1, "nobody", newOwner)).status).toBe(404);
+    expect(inviteMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["malformed JSON", "{nope"],
+    ["no name", { name: " ", email: "nia@coastal.com" }],
+    ["bad email", { name: "Nia", email: "nia@coastal" }],
+  ])("400s %s, without inviting anyone", async (_l, body) => {
+    expect((await transfer(owner1, "own1", body)).status).toBe(400);
+    expect(inviteMock).not.toHaveBeenCalled();
+  });
+
+  it("401s without a valid token", async () => {
+    expect((await transfer(null, "own1", newOwner)).status).toBe(401);
+    expect((await transfer(expired, "own1", newOwner)).status).toBe(401);
+  });
+
+  it("passes APIM's own refusal through", async () => {
+    inviteMock.mockRejectedValueOnce(new ApimError("A user with that email already exists.", 409));
+    const res = await transfer(owner1, "own1", newOwner);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("A user with that email already exists.");
   });
 });

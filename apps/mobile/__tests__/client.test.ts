@@ -252,3 +252,16 @@ describe("user calls", () => {
     ]);
   });
 });
+
+describe("transferOwnership", () => {
+  it("posts only the new owner's name and email to the owner's route", async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(response(200, { success: true, customerName: "C" }));
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl });
+    api.setToken("jwt");
+    await api.transferOwnership("own 1", { name: "Nia", email: "nia@c.com" });
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://x.test/api/mobile/users/own%201/transfer-ownership");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ name: "Nia", email: "nia@c.com" });
+  });
+});

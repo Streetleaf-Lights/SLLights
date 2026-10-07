@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canManageUsers, canSeeUser, userActions, userRoleLabel, userStatus } from "../users";
+import { canManageUsers, canSeeUser, userActions, userRoleLabel, userStatus, validateNewOwner } from "../users";
 
 const viewer = (role: string, customerId: string | null = null, id = "me") => ({ id, role, customerId });
 const user = (role: string, extra: Partial<{ id: string; status: string; customerId: string | null }> = {}) => ({
@@ -44,15 +44,16 @@ describe("who manages and who is seen", () => {
 
 describe("userActions (the web table's rules)", () => {
   it("gives plain Users no actions", () => {
-    expect(userActions(viewer("User", "c1"), user("User"))).toEqual({ reinvite: false, changeRole: false, delete: false });
+    expect(userActions(viewer("User", "c1"), user("User"))).toEqual({ reinvite: false, changeRole: false, delete: false, transferOwnership: false });
   });
 
   it("gives managers Change Role and Delete on others, plus Re-invite when pending", () => {
-    expect(userActions(viewer("Customer Admin", "c1"), user("User"))).toEqual({ reinvite: false, changeRole: true, delete: true });
+    expect(userActions(viewer("Customer Admin", "c1"), user("User"))).toEqual({ reinvite: false, changeRole: true, delete: true, transferOwnership: false });
     expect(userActions(viewer("Customer Owner", "c1"), user("User", { status: "Pending" }))).toEqual({
       reinvite: true,
       changeRole: true,
       delete: true,
+      transferOwnership: false,
     });
   });
 
@@ -61,12 +62,13 @@ describe("userActions (the web table's rules)", () => {
       reinvite: false,
       changeRole: false,
       delete: false,
+      transferOwnership: false,
     });
   });
 
   it("protects a Customer Owner: only a Streetleaf Admin may delete them, nobody changes their role", () => {
-    expect(userActions(viewer("Streetleaf Admin"), user("Customer Owner"))).toEqual({ reinvite: false, changeRole: false, delete: true });
-    expect(userActions(viewer("Customer Admin", "c1"), user("Customer Owner"))).toEqual({ reinvite: false, changeRole: false, delete: false });
+    expect(userActions(viewer("Streetleaf Admin"), user("Customer Owner"))).toEqual({ reinvite: false, changeRole: false, delete: true, transferOwnership: true });
+    expect(userActions(viewer("Customer Admin", "c1"), user("Customer Owner"))).toEqual({ reinvite: false, changeRole: false, delete: false, transferOwnership: false });
     expect(userActions(viewer("Customer Owner", "c1", "me"), user("Customer Owner", { id: "me" })).delete).toBe(false);
   });
 
@@ -75,6 +77,33 @@ describe("userActions (the web table's rules)", () => {
       reinvite: false,
       changeRole: false,
       delete: false,
+      transferOwnership: false,
     });
+  });
+});
+
+describe("Transfer Ownership", () => {
+  it("is offered to the Owner on their own row, and to a Streetleaf Admin on any Owner's row", () => {
+    expect(userActions(viewer("Customer Owner", "c1", "me"), user("Customer Owner", { id: "me" })).transferOwnership).toBe(true);
+    expect(userActions(viewer("Streetleaf Admin"), user("Customer Owner", { customerId: "c9" })).transferOwnership).toBe(true);
+  });
+
+  it("isn't offered to a Customer Admin, a plain User, on another customer's Owner, or on a non-Owner", () => {
+    expect(userActions(viewer("Customer Admin", "c1"), user("Customer Owner")).transferOwnership).toBe(false);
+    expect(userActions(viewer("User", "c1"), user("Customer Owner")).transferOwnership).toBe(false);
+    expect(userActions(viewer("Customer Owner", "c2", "me"), user("Customer Owner")).transferOwnership).toBe(false);
+    expect(userActions(viewer("Streetleaf Admin"), user("Customer Admin")).transferOwnership).toBe(false);
+    expect(userActions(viewer("Streetleaf Admin"), user("Customer Owner", { customerId: null })).transferOwnership).toBe(false);
+  });
+
+  it("validates the new owner like the web invite form", () => {
+    expect(validateNewOwner({ name: "  Nia New ", email: " nia@coastal.com " })).toEqual({
+      ok: true,
+      value: { name: "Nia New", email: "nia@coastal.com" },
+    });
+    expect(validateNewOwner({ name: "", email: "nia@coastal.com" })).toMatchObject({ ok: false });
+    expect(validateNewOwner({ name: "Nia", email: "nia@coastal" })).toMatchObject({ ok: false });
+    expect(validateNewOwner({ name: "Nia", email: "nia @coastal.com" })).toMatchObject({ ok: false });
+    expect(validateNewOwner(null)).toMatchObject({ ok: false });
   });
 });

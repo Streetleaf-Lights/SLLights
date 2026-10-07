@@ -16,6 +16,7 @@ import {
   type PoleRemoteResponse,
   type ProjectRemoteResponse,
   type ChangeRoleResponse,
+  type TransferOwnershipResponse,
   type UsersResponse,
   type PoleVitalsResponse,
   type ProjectDetailResponse,
@@ -236,6 +237,15 @@ export function createApiClient({
 
     changeUserRole(userId: string) {
       return request<ChangeRoleResponse>(`${mobileUserPath(userId)}/role`, { method: "POST", auth: true });
+    },
+
+    /** Invites a new Customer Owner for this Owner's customer (the server fixes the customer and role). */
+    transferOwnership(ownerId: string, newOwner: { name: string; email: string }) {
+      return request<TransferOwnershipResponse>(`${mobileUserPath(ownerId)}/transfer-ownership`, {
+        method: "POST",
+        body: newOwner,
+        auth: true,
+      });
     },
 
     deleteUser(userId: string) {
