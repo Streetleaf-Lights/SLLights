@@ -14,6 +14,8 @@ interface AuthContextValue {
   state: AuthState;
   api: ApiClient;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Completes an emailed invite and signs the person in. */
+  register: (inviteToken: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -87,6 +89,16 @@ export function AuthProvider({
     [api, activate],
   );
 
+  const register = useCallback(
+    async (inviteToken: string, password: string) => {
+      const { token, user } = await api.register(inviteToken, password);
+      const session = { token, user };
+      await sessionStore.save(session);
+      activate(session);
+    },
+    [api, activate],
+  );
+
   const signOut = useCallback(async () => {
     // Tell APIM first (while we still hold the token), but never let a
     // failure there keep someone signed in on the device.
@@ -94,7 +106,7 @@ export function AuthProvider({
     await clearLocal();
   }, [api, clearLocal]);
 
-  const value = useMemo(() => ({ state, api, signIn, signOut }), [state, api, signIn, signOut]);
+  const value = useMemo(() => ({ state, api, signIn, register, signOut }), [state, api, signIn, register, signOut]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

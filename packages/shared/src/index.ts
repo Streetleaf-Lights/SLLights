@@ -11,5 +11,6 @@ export * from "./vitals-chart";
 export * from "./leadsun";
 export * from "./remote-control";
 export * from "./users";
+export * from "./password";
 export * from "./api-contract";
 export { colors, type ColorToken } from "./theme";

@@ -36,3 +36,11 @@ jest.mock("@react-native-community/slider", () => {
   const { View } = jest.requireActual("react-native");
   return { __esModule: true, default: (props: Record<string, unknown>) => <View {...props} /> };
 });
+
+// The native splash screen has nothing to show under Jest (its stand-in also
+// assumes Expo Go and warns about setOptions): quiet no-ops.
+jest.mock("expo-splash-screen", () => ({
+  preventAutoHideAsync: jest.fn(async () => true),
+  hideAsync: jest.fn(async () => true),
+  setOptions: jest.fn(),
+}));

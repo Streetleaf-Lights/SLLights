@@ -18,6 +18,10 @@ import type { AuthUser, PoleIssue, PoleSummary, PoleVitalPeriod } from "./types"
 
 export const MOBILE_API = {
   signIn: "/api/mobile/signin",
+  register: "/api/mobile/registeruser",
+  // No session involved, so the web's own routes serve the app as-is.
+  forgotPassword: "/api/forgotpassword",
+  resetPassword: "/api/resetpassword",
   signOut: "/api/signout",
   poleLookup: "/api/mobile/pole",
   myCustomer: "/api/mobile/customer",
@@ -328,6 +332,19 @@ export interface PoleDetailResponse {
 /** Whether a PoleIssue counts as open (APIM's status casing/whitespace varies). */
 export function isOpenIssue(issue: { status: string }): boolean {
   return issue.status.trim().toLowerCase() === "open";
+}
+
+/**
+ * POST /api/mobile/registeruser { token, password } — completes an invite
+ * (the emailed link's token) and signs the person in. Unlike the web's
+ * /api/registeruser (which sets an httpOnly cookie), the session token comes
+ * back in the body, as for MobileSignInResponse.
+ */
+export type MobileRegisterResponse = MobileSignInResponse;
+
+/** POST /api/forgotpassword { email } — always the same generic message, whether or not the account exists. */
+export interface ForgotPasswordResponse {
+  message: string;
 }
 
 /** GET /api/mobile/pole?poleNumber=… — null when no pole with that number is visible to the caller. */

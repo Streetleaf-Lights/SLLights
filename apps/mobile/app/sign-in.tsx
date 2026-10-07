@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/auth/AuthProvider";
 import { Banner } from "@/ui/Banner";
@@ -9,6 +10,7 @@ import { colors, space, type } from "@/ui/theme";
 
 export default function SignInScreen() {
   const { signIn } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -68,9 +70,15 @@ export default function SignInScreen() {
             onSubmitEditing={handleSubmit}
           />
           <Button label="Sign in" onPress={handleSubmit} loading={submitting} />
-          <Text style={[type.small, styles.footnote]}>
-            Forgot your password? Reset it from the Streetleaf dashboard on the web.
-          </Text>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Forgot your password?"
+            onPress={() => router.push("/forgot-password")}
+            hitSlop={8}
+            style={styles.footnote}
+          >
+            <Text style={styles.forgot}>Forgot your password?</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -83,5 +91,6 @@ const styles = StyleSheet.create({
   content: { padding: space.xl, gap: space.lg, paddingTop: space.xxl * 2 },
   logo: { width: 180, height: 48, marginBottom: space.lg },
   intro: { gap: space.xs, marginBottom: space.sm },
-  footnote: { textAlign: "center", marginTop: space.sm },
+  footnote: { alignSelf: "center", marginTop: space.sm },
+  forgot: { fontSize: 15, fontWeight: "600", color: colors.accentStrong },
 });

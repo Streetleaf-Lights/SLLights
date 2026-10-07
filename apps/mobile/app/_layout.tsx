@@ -66,6 +66,18 @@ function RootStack() {
       <Stack.Protected guard={introDone && !signedIn}>
         <Stack.Screen name="sign-in" options={{ headerShown: false, animation: "fade" }} />
       </Stack.Protected>
+      {/*
+        Signed-out helpers. Not behind the welcome screen, so an emailed
+        invite / reset link (same paths as the web pages) that opens the app
+        from cold lands straight on its screen instead of being lost to the
+        5-second welcome. Signing in (or registering) leaves them by the
+        guard above.
+      */}
+      <Stack.Protected guard={!signedIn}>
+        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+        <Stack.Screen name="register" options={{ headerShown: false }} />
+      </Stack.Protected>
     </Stack>
   );
 }

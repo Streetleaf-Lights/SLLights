@@ -11,6 +11,9 @@ import { join, relative } from "node:path";
 const EXPECTED = [
   "_layout.tsx",
   "sign-in.tsx",
+  "forgot-password.tsx",
+  "reset-password.tsx",
+  "register.tsx",
   "welcome.tsx",
   "(tabs)/_layout.tsx",
   "(tabs)/(account)/_layout.tsx",

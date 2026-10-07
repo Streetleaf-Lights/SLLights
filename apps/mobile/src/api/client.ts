@@ -24,6 +24,8 @@ import {
   type ProjectDetailResponse,
   type CreatePoleIssueRequest,
   type MobileSignInResponse,
+  type MobileRegisterResponse,
+  type ForgotPasswordResponse,
   type MyCustomerResponse,
   type PoleInstallRequest,
   type PoleLookupResponse,
@@ -142,6 +144,28 @@ export function createApiClient({
       return request<MobileSignInResponse>(MOBILE_API.signIn, {
         method: "POST",
         body: { email, password },
+        auth: false,
+      });
+    },
+
+    /** Completes an emailed invite ("Set your password") and returns a session, like signIn. */
+    register(inviteToken: string, password: string) {
+      return request<MobileRegisterResponse>(MOBILE_API.register, {
+        method: "POST",
+        body: { token: inviteToken, password },
+        auth: false,
+      });
+    },
+
+    /** Always resolves with the same generic message, whether or not the account exists. */
+    forgotPassword(email: string) {
+      return request<ForgotPasswordResponse>(MOBILE_API.forgotPassword, { method: "POST", body: { email }, auth: false });
+    },
+
+    resetPassword(resetToken: string, newPassword: string) {
+      return request<{ success?: boolean }>(MOBILE_API.resetPassword, {
+        method: "POST",
+        body: { token: resetToken, newPassword },
         auth: false,
       });
     },
