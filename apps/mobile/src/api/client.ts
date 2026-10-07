@@ -10,6 +10,8 @@ import {
   type CustomerOverviewResponse,
   type LightCommandResponse,
   type PoleDetailResponse,
+  type PoleListQuery,
+  type PoleListResponse,
   type PoleRemoteResponse,
   type ProjectRemoteResponse,
   type PoleVitalsResponse,
@@ -187,6 +189,20 @@ export function createApiClient({
         body: command,
         auth: true,
       });
+    },
+
+    /** The Poles list, searched and paged on the server (10 per page). */
+    listPoles(query: PoleListQuery = {}) {
+      // Built by hand: React Native's URLSearchParams has historically lacked set().
+      const params: [string, string][] = [];
+      if (query.q?.trim()) params.push(["q", query.q.trim()]);
+      if (query.page && query.page > 1) params.push(["page", String(query.page)]);
+      if (query.faults) {
+        params.push(["faults", "1"], ["customerId", query.faults.customerId]);
+        if (query.faults.projectId) params.push(["projectId", query.faults.projectId]);
+      }
+      const qs = params.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
+      return request<PoleListResponse>(`${MOBILE_API.poles}${qs ? `?${qs}` : ""}`, { method: "GET", auth: true });
     },
 
     lookupPole(poleNumber: string) {

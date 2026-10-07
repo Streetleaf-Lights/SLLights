@@ -21,6 +21,7 @@ export const MOBILE_API = {
   poleLookup: "/api/mobile/pole",
   myCustomer: "/api/mobile/customer",
   customers: "/api/mobile/customers",
+  poles: "/api/mobile/poles",
   poleInstall: "/api/mobile/poleinstall",
   createPoleIssue: "/api/createpoleissue",
 } as const;
@@ -131,6 +132,50 @@ export interface ProjectRemoteResponse {
 export interface LightCommandResponse {
   success: true;
   message: string;
+}
+
+/** One row of the Poles list (the web's PolesTable columns), shaped for the viewer. */
+export interface PoleListRow {
+  id: string;
+  poleNumber: string;
+  customerId: string;
+  projectId: string;
+  /** The row's coloured dot: true online, false offline, null unknown. */
+  isOnline: boolean | null;
+  /** "48h Connected" — staff only; absent for customer-scoped viewers (as on the web). */
+  connectedText?: string | null;
+  overallStatusText: string | null;
+  lightStatusText: string | null;
+  /** Panel status with its idle reason, as the web shows it. */
+  panelText: string;
+  batteryStatusText: string | null;
+  /** Faults view only: the row's project name (the web's Project column). */
+  projectName?: string | null;
+}
+
+export interface PoleListQuery {
+  /** Pole-number search (case-insensitive, contains). */
+  q?: string;
+  page?: number;
+  /** The web's "Total faults" view: faulted, recently-reporting poles of one customer (or one of its projects). */
+  faults?: { customerId: string; projectId?: string };
+}
+
+/**
+ * GET /api/mobile/poles?q=&page=&faults=1&customerId=&projectId= — the web
+ * Poles page, searched and paged on the server (10 per page) so a phone
+ * never downloads every pole. Customer-scoped viewers only ever get their
+ * own customer's poles.
+ */
+export interface PoleListResponse {
+  rows: PoleListRow[];
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  firstItem: number;
+  lastItem: number;
+  /** Faults view, staff only: the customer's name (the web's Customer column). */
+  customerName?: string | null;
 }
 
 /** GET /api/mobile/customers — Streetleaf staff only (403 for customer-scoped users). Active customers, by name. */

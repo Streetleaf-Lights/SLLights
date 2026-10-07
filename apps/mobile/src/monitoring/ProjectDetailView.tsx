@@ -102,7 +102,16 @@ export function ProjectDetailView({
             stats={[
               { label: "Total lights", value: count(project.totalLights) },
               ...(viewerScoped ? [] : [{ label: "Connected", value: count(project.connectedLights) }]),
-              { label: "Total faults", value: count(project.totalFaults), emphasis: "flagged" as const },
+              {
+                label: "Total faults",
+                value: count(project.totalFaults),
+                emphasis: "flagged" as const,
+                // As on the web: a link to this project's faulted poles, only when there are some.
+                onPress:
+                  (project.totalFaults ?? 0) > 0
+                    ? () => router.push({ pathname: "/faults", params: { customerId: customer.id, projectId: project.id } })
+                    : undefined,
+              },
             ]}
           />
           {/* As on the web: Location between the stats and the poles, plotting every pole (not just this page). */}

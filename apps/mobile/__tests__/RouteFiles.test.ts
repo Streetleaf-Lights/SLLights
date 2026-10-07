@@ -22,6 +22,10 @@ const EXPECTED = [
   "(tabs)/(scan)/_layout.tsx",
   "(tabs)/(scan)/scan.tsx",
   "(tabs)/(home,scan)/pole/[poleNumber].tsx",
+  "(tabs)/(home)/faults.tsx",
+  "(tabs)/(poles)/_layout.tsx",
+  "(tabs)/(poles)/index.tsx",
+  "(tabs)/(poles)/pole/[customerId]/[projectId]/[poleId].tsx",
 ].sort();
 
 function listFiles(dir: string, root = dir): string[] {

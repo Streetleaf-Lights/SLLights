@@ -52,6 +52,7 @@ export default function HomeStackLayout() {
           headerLeft: () => <HeaderBackButton onPress={() => navigation.goBack()} />,
         })}
       />
+      <Stack.Screen name="faults" options={{ title: "Faults" }} />
       <Stack.Screen name="pole/[poleNumber]" options={{ title: "Pole" }} />
     </Stack>
   );

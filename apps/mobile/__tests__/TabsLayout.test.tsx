@@ -42,6 +42,7 @@ describe("Tabs", () => {
     await render(<TabsLayout />, { wrapper: withSignedInAuth(fakeApi()) });
     expect(await screen.findByTestId("tab-(scan)")).toHaveTextContent("Scan|shown");
     expect(screen.getByTestId("tab-(home)")).toHaveTextContent("Customers|shown");
+    expect(screen.getByTestId("tab-(poles)")).toHaveTextContent("Poles|shown");
   });
 
   it.each([
@@ -54,6 +55,7 @@ describe("Tabs", () => {
     await render(<TabsLayout />, { wrapper: withSignedInAuth(fakeApi()) });
     expect(await screen.findByTestId("tab-(scan)")).toHaveTextContent("Scan|hidden");
     expect(screen.getByTestId("tab-(home)")).toHaveTextContent(`${home}|shown`);
+    expect(screen.getByTestId("tab-(poles)")).toHaveTextContent("Poles|shown");
     expect(screen.getByTestId("tab-account")).toHaveTextContent("Account|shown");
   });
 

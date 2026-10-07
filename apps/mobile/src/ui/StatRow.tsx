@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radius, space } from "./theme";
 
 export interface Stat {
@@ -6,6 +6,8 @@ export interface Stat {
   value: string;
   /** Faults use the flagged colour, as on the web. */
   emphasis?: "flagged";
+  /** Makes the tile a link (e.g. "Total faults" → the faulted poles). */
+  onPress?: () => void;
 }
 
 /** Equal-width stat tiles — the mobile take on the web's StatGroup. */
@@ -13,10 +15,13 @@ export function StatRow({ stats, compact = false }: { stats: Stat[]; compact?: b
   return (
     <View style={styles.row}>
       {stats.map((stat) => (
-        <View
+        <Pressable
           key={stat.label}
-          style={[styles.tile, compact && styles.tileCompact]}
+          disabled={!stat.onPress}
+          onPress={stat.onPress}
+          style={({ pressed }) => [styles.tile, compact && styles.tileCompact, stat.onPress && styles.linked, pressed && styles.pressed]}
           accessible
+          accessibilityRole={stat.onPress ? "link" : undefined}
           accessibilityLabel={`${stat.label}: ${stat.value}`}
         >
           <Text
@@ -29,7 +34,7 @@ export function StatRow({ stats, compact = false }: { stats: Stat[]; compact?: b
           <Text style={styles.label} numberOfLines={1}>
             {stat.label}
           </Text>
-        </View>
+        </Pressable>
       ))}
     </View>
   );
@@ -52,5 +57,7 @@ const styles = StyleSheet.create({
   value: { fontSize: 22, fontWeight: "700", color: colors.ink, fontVariant: ["tabular-nums"] },
   valueCompact: { fontSize: 16 },
   flagged: { color: colors.statusFlagged },
+  linked: { borderColor: colors.statusFlaggedBg },
+  pressed: { opacity: 0.6 },
   label: { fontSize: 12, color: colors.inkMuted },
 });

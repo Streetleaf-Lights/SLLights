@@ -11,6 +11,10 @@ import * as ProjectPole from "../app/(tabs)/(home)/project/[customerId]/[project
 import * as ScanLayout from "../app/(tabs)/(scan)/_layout";
 import * as Scan from "../app/(tabs)/(scan)/scan";
 import * as Pole from "../app/(tabs)/(home,scan)/pole/[poleNumber]";
+import * as Faults from "../app/(tabs)/(home)/faults";
+import * as PolesLayout from "../app/(tabs)/(poles)/_layout";
+import * as PolesIndex from "../app/(tabs)/(poles)/index";
+import * as PolesPole from "../app/(tabs)/(poles)/pole/[customerId]/[projectId]/[poleId]";
 import { sessionStore } from "@/auth/sessionStore";
 import { fakeApi, futureExp, makePoleDetail, makeToken, withSignedInAuth } from "../test-utils/helpers";
 
@@ -53,6 +57,10 @@ const routes = {
   "(tabs)/(scan)/_layout": ScanLayout,
   "(tabs)/(scan)/scan": Scan,
   "(tabs)/(home,scan)/pole/[poleNumber]": Pole,
+  "(tabs)/(home)/faults": Faults,
+  "(tabs)/(poles)/_layout": PolesLayout,
+  "(tabs)/(poles)/index": PolesIndex,
+  "(tabs)/(poles)/pole/[customerId]/[projectId]/[poleId]": PolesPole,
 };
 
 const overview = {
@@ -78,7 +86,18 @@ function api() {
     getProject: jest.fn().mockResolvedValue(project),
     getPoleDetail: jest.fn().mockResolvedValue(makePoleDetail(false)),
     lookupPole: jest.fn().mockResolvedValue({ pole: { id: "pole1", poleNumber: "PAS-9", customerId: "c1", projectId: "p1" } }),
+    listPoles: jest.fn().mockResolvedValue({
+      rows: [{ id: "pole1", poleNumber: "PAS-1", customerId: "c1", projectId: "p1", isOnline: true, connectedText: "Online",
+        overallStatusText: "Fault", lightStatusText: "ON", panelText: "Charging", batteryStatusText: "OK", projectName: "North Corridor" }],
+      page: 1, totalPages: 1, totalItems: 1, firstItem: 1, lastItem: 1,
+    }),
   });
+}
+
+function faultsApi() {
+  const a = api();
+  (a.getProject as jest.Mock).mockResolvedValue({ ...project, project: { ...project.project, totalFaults: 2 } });
+  return a;
 }
 
 /** The bottom nav's tab buttons are on screen. */
@@ -127,5 +146,23 @@ describe("navigation inside the tabs", () => {
     await waitFor(() => expect(router.getPathname()).toBe("/project/c1/p1"));
     await expectTabBar("Projects", "Account");
     expect(screen.queryByRole("button", { name: /^Scan/ })).toBeNull();
+  });
+
+  it("opens a pole from the Poles tab inside that tab, with the bottom nav", async () => {
+    await signIn("Streetleaf Admin", null);
+    const router = await renderRouter(routes, { initialUrl: "/(tabs)/(poles)", wrapper: withSignedInAuth(api()) });
+    await fireEvent.press(await screen.findByRole("button", { name: /^Pole PAS-1/ }));
+    await waitFor(() => expect(router.getSegments()).toEqual(["(tabs)", "(poles)", "pole", "[customerId]", "[projectId]", "[poleId]"]));
+    expect(await screen.findByLabelText(/^Battery: /)).toBeTruthy(); // the web-style pole page
+    await expectTabBar("Customers", "Poles", "Scan", "Account");
+  });
+
+  it("opens the faulted poles from a project's Total faults, then a pole in the home tab", async () => {
+    await signIn("Streetleaf Admin", null);
+    const router = await renderRouter(routes, { initialUrl: "/project/c1/p1", wrapper: withSignedInAuth(faultsApi()) });
+    await fireEvent.press(await screen.findByRole("link", { name: "Total faults: 2" }));
+    await waitFor(() => expect(router.getSegments()).toEqual(["(tabs)", "(home)", "faults"]));
+    await fireEvent.press(await screen.findByRole("button", { name: /^Pole PAS-1/ }));
+    await waitFor(() => expect(router.getPathname()).toBe("/project/c1/p1/pole/pole1"));
   });
 });

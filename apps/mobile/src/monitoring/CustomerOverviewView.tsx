@@ -71,7 +71,16 @@ export function CustomerOverviewView({
             stats={[
               { label: "Total lights", value: count(summary.totalLights) },
               { label: "Lights working", value: percent(summary.percentWorking) },
-              { label: "Total faults", value: count(summary.totalFaults), emphasis: "flagged" },
+              {
+                label: "Total faults",
+                value: count(summary.totalFaults),
+                emphasis: "flagged",
+                // As on the web: a link to the faulted poles, only when there are some.
+                onPress:
+                  (summary.totalFaults ?? 0) > 0
+                    ? () => router.push({ pathname: "/faults", params: { customerId: customer.id } })
+                    : undefined,
+              },
             ]}
           />
 

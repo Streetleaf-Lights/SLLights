@@ -171,3 +171,19 @@ describe("remote control calls", () => {
     expect(postInit.headers.Authorization).toBe("Bearer jwt");
   });
 });
+
+describe("listPoles", () => {
+  it("builds the query (encoded) without URLSearchParams", async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(response(200, { rows: [] }));
+    const api = createApiClient({ baseUrl: "https://x.test", fetchImpl });
+    api.setToken("jwt");
+    await api.listPoles();
+    await api.listPoles({ q: " pas 1&x ", page: 2 });
+    await api.listPoles({ faults: { customerId: "c 1", projectId: "p1" } });
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
+      "https://x.test/api/mobile/poles",
+      "https://x.test/api/mobile/poles?q=pas%201%26x&page=2",
+      "https://x.test/api/mobile/poles?faults=1&customerId=c%201&projectId=p1",
+    ]);
+  });
+});
