@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { colors } from "@/ui/theme";
 
-/** The Scan tab's own stack (scanner → pole), so the bottom nav stays visible. */
+/** The Scan tab's own stack (the install form; the pole screen is still routable here), so the bottom nav stays visible. */
 export default function ScanStackLayout() {
   return (
     <Stack
@@ -11,8 +11,7 @@ export default function ScanStackLayout() {
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
-      {/* Titled for the pole screen's back button ("‹ Scan"); its own header is hidden. */}
-      <Stack.Screen name="scan" options={{ title: "Scan", headerShown: false }} />
+      <Stack.Screen name="scan" options={{ title: "New Install" }} />
       <Stack.Screen name="pole/[poleNumber]" options={{ title: "Pole" }} />
     </Stack>
   );

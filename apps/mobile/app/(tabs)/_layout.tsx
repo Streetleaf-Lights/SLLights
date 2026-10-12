@@ -3,6 +3,7 @@ import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { canUseFieldTools, isCustomerScoped } from "@sllights/shared/auth-role";
 import { useSignedInUser } from "@/auth/AuthProvider";
+import { InstallQueueProvider } from "@/installs/InstallQueueProvider";
 import { tabBarBottomInset } from "@/ui/tabBar";
 import { colors } from "@/ui/theme";
 
@@ -17,10 +18,14 @@ export default function TabsLayout() {
   const { claims } = useSignedInUser();
   const insets = useSafeAreaInsets();
   const homeTitle = isCustomerScoped(claims.role, claims.customerId) ? "Projects" : "Customers";
-  // Scanning is field work: only Streetleaf Admin and Streetleaf Crew get the tab.
+  // Installs are field work: only Streetleaf Admin and Streetleaf Crew get the tab.
   const showScan = canUseFieldTools(claims.role);
 
+  // The offline install queue runs for the whole signed-in session (not just
+  // while the Scan tab is open), so saved installs go out as soon as
+  // there's a connection.
   return (
+    <InstallQueueProvider>
     <Tabs
       // Trim the gap under the icons; see tabBarBottomInset.
       safeAreaInsets={{ bottom: tabBarBottomInset(insets.bottom) }}
@@ -51,11 +56,11 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="(scan)"
         options={{
-          title: "Scan",
+          title: "Install",
           headerShown: false,
           // href: null removes the tab from the bar entirely.
           ...(showScan ? {} : { href: null }),
-          tabBarIcon: ({ color, size }) => <Ionicons name="scan" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="construct-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -68,5 +73,6 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    </InstallQueueProvider>
   );
 }

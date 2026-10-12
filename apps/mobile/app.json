@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SLLights",
+    "name": "Streetleaf Lights",
     "slug": "sllights",
     "scheme": "sllights",
     "version": "0.1.0",
@@ -13,10 +13,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.streetleaf.sllights"
+      "bundleIdentifier": "com.streetleaf.lights"
     },
     "android": {
-      "package": "com.streetleaf.sllights",
+      "package": "com.streetleaf.lights",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -40,7 +40,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "SLLights uses the camera to scan pole tags.",
+          "cameraPermission": "Streetleaf Lights uses the camera to scan pole tags.",
           "microphonePermission": false,
           "recordAudioAndroid": false,
           "barcodeScannerEnabled": true
@@ -49,7 +49,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "SLLights records where a pole was installed when you confirm an install."
+          "locationWhenInUsePermission": "Streetleaf Lights records where a pole was installed when you confirm an install."
         }
       ],
       [

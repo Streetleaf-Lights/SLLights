@@ -5,7 +5,7 @@
  * configured: each file 404s while its setting is missing, and the links
  * keep opening the web pages, which work as before.
  */
-export const MOBILE_APP_ID = "com.streetleaf.sllights";
+export const MOBILE_APP_ID = "com.streetleaf.lights";
 /** The emailed-link pages the app also handles. */
 export const APP_LINK_PATHS = ["/register", "/reset-password"];
 

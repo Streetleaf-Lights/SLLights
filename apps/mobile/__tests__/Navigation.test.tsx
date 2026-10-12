@@ -107,7 +107,8 @@ function faultsApi() {
 /** The bottom nav's tab buttons are on screen. */
 async function expectTabBar(...labels: string[]) {
   for (const label of labels) {
-    expect(await screen.findByRole("button", { name: new RegExp(`^${label}`) })).toBeTruthy();
+    // Tab buttons are labelled "Scan, tab, 3 of 4" — match that, not any button starting with the word.
+    expect(await screen.findByRole("button", { name: new RegExp(`^${label}, tab`) })).toBeTruthy();
   }
 }
 
@@ -118,7 +119,7 @@ describe("navigation inside the tabs", () => {
 
     await fireEvent.press(await screen.findByRole("button", { name: "Coastal Power" }));
     await waitFor(() => expect(router.getPathname()).toBe("/customer/c1"));
-    await expectTabBar("Customers", "Scan", "Account");
+    await expectTabBar("Customers", "Install", "Account");
 
     await fireEvent.press(await screen.findByRole("button", { name: /^North Corridor/ }));
     await waitFor(() => expect(router.getPathname()).toBe("/project/c1/p1"));
@@ -128,19 +129,17 @@ describe("navigation inside the tabs", () => {
     await waitFor(() => expect(router.getPathname()).toBe("/project/c1/p1/pole/a"));
     expect(router.getSegments()).toEqual(["(tabs)", "(home)", "project", "[customerId]", "[projectId]", "pole", "[poleId]"]);
     expect(await screen.findByLabelText(/^Battery: /)).toBeTruthy(); // the web-style pole page
-    await expectTabBar("Customers", "Scan", "Account");
+    await expectTabBar("Customers", "Install", "Account");
   });
 
-  it("opens a scanned pole inside the Scan tab, with the bottom nav still there", async () => {
+  it("opens the install form in the Install tab, with the bottom nav", async () => {
     await signIn("Streetleaf Admin", null);
     const router = await renderRouter(routes, { initialUrl: "/scan", wrapper: withSignedInAuth(api()) });
-
-    await fireEvent.changeText(await screen.findByLabelText("Pole number"), "PAS-9");
-    await fireEvent.press(screen.getByRole("button", { name: "Open" }));
-    await waitFor(() => expect(router.getPathname()).toBe("/pole/PAS-9"));
-    expect(router.getSegments()).toEqual(["(tabs)", "(scan)", "pole", "[poleNumber]"]);
-    await expectTabBar("Customers", "Scan", "Account");
+    expect(await screen.findByLabelText("Pole Number")).toBeTruthy();
+    expect(router.getSegments()).toEqual(["(tabs)", "(scan)", "scan"]);
+    await expectTabBar("Customers", "Install", "Account");
   });
+
 
   it("gives customers the same in-tab navigation from their Projects home", async () => {
     await signIn("Customer Owner", "c1");
@@ -149,7 +148,7 @@ describe("navigation inside the tabs", () => {
     await fireEvent.press(await screen.findByRole("button", { name: /^North Corridor/ }));
     await waitFor(() => expect(router.getPathname()).toBe("/project/c1/p1"));
     await expectTabBar("Projects", "Account");
-    expect(screen.queryByRole("button", { name: /^Scan/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Install, tab/ })).toBeNull();
   });
 
   it("opens a pole from the Poles tab inside that tab, with the bottom nav", async () => {
@@ -158,7 +157,7 @@ describe("navigation inside the tabs", () => {
     await fireEvent.press(await screen.findByRole("button", { name: /^Pole PAS-1/ }));
     await waitFor(() => expect(router.getSegments()).toEqual(["(tabs)", "(poles)", "pole", "[customerId]", "[projectId]", "[poleId]"]));
     expect(await screen.findByLabelText(/^Battery: /)).toBeTruthy(); // the web-style pole page
-    await expectTabBar("Customers", "Poles", "Scan", "Account");
+    await expectTabBar("Customers", "Poles", "Install", "Account");
   });
 
   it("opens the faulted poles from a project's Total faults, then a pole in the home tab", async () => {

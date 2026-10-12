@@ -3,14 +3,17 @@ import { colors, radius, space, touch, type } from "./theme";
 
 interface TextFieldProps extends TextInputProps {
   label: string;
+  /** Shows an asterisk after the label (screen readers hear "required"). */
+  required?: boolean;
 }
 
-export function TextField({ label, style, multiline, ...rest }: TextFieldProps) {
+export function TextField({ label, required = false, style, multiline, ...rest }: TextFieldProps) {
   return (
     <View style={styles.wrap}>
-      <Text style={type.label}>{label}</Text>
+      <FieldLabel label={label} required={required} />
       <TextInput
         accessibilityLabel={label}
+        accessibilityHint={required ? "Required" : undefined}
         placeholderTextColor={colors.inkFaint}
         multiline={multiline}
         style={[styles.input, multiline && styles.multiline, style]}
@@ -33,4 +36,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   multiline: { minHeight: 104, paddingTop: space.md, textAlignVertical: "top" },
+  asterisk: { color: colors.statusFlagged, fontWeight: "700" },
 });
+
+/** A field label, with a red asterisk when required. */
+export function FieldLabel({ label, required = false }: { label: string; required?: boolean }) {
+  return (
+    <Text style={type.label}>
+      {label}
+      {required ? (
+        <Text style={styles.asterisk} accessibilityElementsHidden importantForAccessibility="no">
+          {" *"}
+        </Text>
+      ) : null}
+    </Text>
+  );
+}

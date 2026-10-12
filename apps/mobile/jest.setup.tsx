@@ -15,6 +15,7 @@ jest.mock("expo-secure-store", () => {
 
 jest.mock("expo-haptics", () => ({
   notificationAsync: jest.fn(async () => undefined),
+  selectionAsync: jest.fn(async () => undefined),
   NotificationFeedbackType: { Success: "success", Warning: "warning", Error: "error" },
 }));
 
@@ -44,3 +45,15 @@ jest.mock("expo-splash-screen", () => ({
   hideAsync: jest.fn(async () => true),
   setOptions: jest.fn(),
 }));
+
+// On-phone storage and connection state: the libraries' own Jest stand-ins.
+jest.mock("@react-native-async-storage/async-storage", () =>
+  jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock"),
+);
+jest.mock("@react-native-community/netinfo", () => jest.requireActual("@react-native-community/netinfo/jest/netinfo-mock"));
+
+// Unique ids for saved installs: predictable in tests.
+jest.mock("expo-crypto", () => {
+  let n = 0;
+  return { randomUUID: jest.fn(() => `uuid-${++n}`) };
+});

@@ -37,10 +37,10 @@ describe("Tabs", () => {
   it.each([
     ["Streetleaf Admin", null],
     ["Streetleaf Crew", null],
-  ])("show Scan to %s", async (role, customerId) => {
+  ])("show Install to %s", async (role, customerId) => {
     await signIn(role, customerId);
     await render(<TabsLayout />, { wrapper: withSignedInAuth(fakeApi()) });
-    expect(await screen.findByTestId("tab-(scan)")).toHaveTextContent("Scan|shown");
+    expect(await screen.findByTestId("tab-(scan)")).toHaveTextContent("Install|shown");
     expect(screen.getByTestId("tab-(home)")).toHaveTextContent("Customers|shown");
     expect(screen.getByTestId("tab-(poles)")).toHaveTextContent("Poles|shown");
   });
@@ -50,10 +50,10 @@ describe("Tabs", () => {
     ["User", "c1", "Projects"], // Customer User
     ["Customer Owner", "c1", "Projects"],
     ["Customer Admin", "c1", "Projects"],
-  ])("hide Scan from %s (customer %s)", async (role, customerId, home) => {
+  ])("hide Install from %s (customer %s)", async (role, customerId, home) => {
     await signIn(role, customerId);
     await render(<TabsLayout />, { wrapper: withSignedInAuth(fakeApi()) });
-    expect(await screen.findByTestId("tab-(scan)")).toHaveTextContent("Scan|hidden");
+    expect(await screen.findByTestId("tab-(scan)")).toHaveTextContent("Install|hidden");
     expect(screen.getByTestId("tab-(home)")).toHaveTextContent(`${home}|shown`);
     expect(screen.getByTestId("tab-(poles)")).toHaveTextContent("Poles|shown");
     expect(screen.getByTestId("tab-(account)")).toHaveTextContent("Account|shown");
@@ -64,7 +64,7 @@ describe("Tabs", () => {
     await sessionStore.save({ token, user: { id: "u1", name: "U", email: "u@x.com", role: "User", customerId: null } });
     await render(<TabsLayout />, { wrapper: withSignedInAuth(fakeApi()) });
     expect(await screen.findByTestId("tab-(home)")).toHaveTextContent("Customers|shown");
-    expect(screen.getByTestId("tab-(scan)")).toHaveTextContent("Scan|hidden");
+    expect(screen.getByTestId("tab-(scan)")).toHaveTextContent("Install|hidden");
   });
 
   it.each([

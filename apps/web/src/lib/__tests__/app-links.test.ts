@@ -11,7 +11,7 @@ describe("app link verification files", () => {
       applinks: {
         details: [
           {
-            appIDs: ["ABCDE12345.com.streetleaf.sllights"],
+            appIDs: ["ABCDE12345.com.streetleaf.lights"],
             components: [{ "/": "/register" }, { "/": "/register/*" }, { "/": "/reset-password" }, { "/": "/reset-password/*" }],
           },
         ],
@@ -23,7 +23,7 @@ describe("app link verification files", () => {
     expect(androidAssetLinks("aa:bb, CC:DD ,")).toEqual([
       {
         relation: ["delegate_permission/common.handle_all_urls"],
-        target: { namespace: "android_app", package_name: "com.streetleaf.sllights", sha256_cert_fingerprints: ["AA:BB", "CC:DD"] },
+        target: { namespace: "android_app", package_name: "com.streetleaf.lights", sha256_cert_fingerprints: ["AA:BB", "CC:DD"] },
       },
     ]);
   });
@@ -40,7 +40,7 @@ describe("app link verification files", () => {
     vi.stubEnv("ANDROID_SHA256_CERT_FINGERPRINTS", "AA:BB");
     const aasa = AASA();
     expect(aasa.headers.get("content-type")).toContain("application/json");
-    expect((await aasa.json()).applinks.details[0].appIDs).toEqual(["ABCDE12345.com.streetleaf.sllights"]);
+    expect((await aasa.json()).applinks.details[0].appIDs).toEqual(["ABCDE12345.com.streetleaf.lights"]);
     expect((await ASSETLINKS().json())[0].target.sha256_cert_fingerprints).toEqual(["AA:BB"]);
   });
 });

@@ -122,7 +122,7 @@ export function createApiClient({
     // page) must not reach screens as `null` data.
     if (body === null || typeof body !== "object") {
       throw new ApiError(
-        `Unexpected response from the server (${res.status}). Check the app is pointed at the SLLights web app.`,
+        `Unexpected response from the server (${res.status}). Check the app is pointed at the Streetleaf Lights web app.`,
         res.status,
       );
     }
