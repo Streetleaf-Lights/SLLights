@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { SearchField } from "./SearchField";
 import { FieldLabel } from "./TextField";
@@ -40,6 +40,11 @@ export function SelectField({
   error?: string;
 }) {
   const [open, setOpen] = useState(false);
+  // The app's safe-area insets, applied as padding. (A SafeAreaView inside a
+  // Modal often measures zero on the modal's first opening — before it's
+  // attached to the window — so the list started under the status bar.)
+  const insets = useSafeAreaInsets();
+  const safeArea = { paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right };
   const [query, setQuery] = useState("");
   const selected = options.find((o) => o.value === value) ?? null;
   const shown = useMemo(() => {
@@ -76,8 +81,15 @@ export function SelectField({
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
-        <SafeAreaView style={styles.sheet}>
+      <Modal
+        visible={open}
+        animationType="slide"
+        onRequestClose={() => setOpen(false)}
+        // Full screen on Android too, as on iOS, so the inset padding is right on both.
+        statusBarTranslucent
+        navigationBarTranslucent
+      >
+        <View style={[styles.sheet, safeArea]}>
           <View style={styles.sheetTop}>
             <Text style={styles.sheetTitle} accessibilityRole="header">
               {label}
@@ -119,7 +131,7 @@ export function SelectField({
               );
             }}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
     </View>
   );

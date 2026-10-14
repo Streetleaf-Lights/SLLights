@@ -10,6 +10,13 @@ import { sessionStore } from "@/auth/sessionStore";
 import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
 
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
+// The form's scroll behaviour (tested on its own in useFormScroll.test.tsx): watched here to check the screen wires it up.
+const mockFormScroll = {
+  scrollRef: { current: null },
+  bottomFieldProps: { onFocus: jest.fn(), onBlur: jest.fn() },
+  showTop: jest.fn(),
+};
+jest.mock("@/installs/useFormScroll", () => ({ useFormScroll: () => mockFormScroll }));
 jest.mock("expo-camera", () => {
   const { View } = jest.requireActual("react-native");
   return {
@@ -301,6 +308,10 @@ describe("Install form (Scan tab)", () => {
 
     expect(await screen.findByText(/Install for CHA-1157 saved on this phone/)).toBeTruthy();
     expect(send).not.toHaveBeenCalled();
+    // The message is at the top, above the waiting/offline card — where the screen scrolls after Submit.
+    const order = JSON.stringify(screen.toJSON());
+    expect(order.indexOf("saved on this phone")).toBeLessThan(order.indexOf("Waiting to send"));
+    expect(order.indexOf("saved on this phone")).toBeLessThan(order.indexOf("Solar Panel Serial Number"));
     expect(saved().map((i) => i.submission.poleNumber)).toEqual(["CHA-1157"]);
     const pending = within(screen.getByTestId("pending-installs"));
     expect(pending.getByText("Waiting to send (1)")).toBeTruthy();
@@ -380,6 +391,26 @@ describe("Install form (Scan tab)", () => {
       await fireEvent.press(screen.getByRole("button", { name: `Close ${field}` }));
       return labels;
     };
+
+    it("keeps the list clear of the status bar from its very first opening", async () => {
+      await renderScreen({ online: true });
+      await fireEvent.press(await screen.findByRole("button", { name: /^Project: / }));
+      // The list's screen is padded by the phone's status bar and home indicator.
+      const title = screen.getByRole("header", { name: "Project" });
+      let node = title.parent;
+      while (node && !(Array.isArray(node.props.style) && node.props.style.some((st: { paddingTop?: number }) => st?.paddingTop !== undefined))) node = node.parent;
+      const style = Object.assign({}, ...(node?.props.style ?? []));
+      expect(style).toMatchObject({ paddingTop: 59, paddingBottom: 34 });
+    });
+
+    it("keeps the barcode scanner clear of the status bar too", async () => {
+      await renderScreen({ online: true });
+      await fireEvent.press(screen.getByRole("button", { name: "Scan Solar Panel Serial Number" }));
+      const title = screen.getByRole("header", { name: "Scan Solar Panel Serial Number" });
+      let node = title.parent;
+      while (node && !(Array.isArray(node.props.style) && node.props.style.some((st: { paddingTop?: number }) => st?.paddingTop !== undefined))) node = node.parent;
+      expect(Object.assign({}, ...(node?.props.style ?? []))).toMatchObject({ paddingTop: 59, paddingBottom: 34 });
+    });
 
     it("lists the projects (with their customer) first, then the chosen project's stickers", async () => {
       await renderScreen({ online: true });
@@ -469,6 +500,36 @@ describe("Install form (Scan tab)", () => {
       await screen.findByText("Latitude 27.950575");
       await screen.findByText(/^Updated /);
       expect(JSON.parse((await AsyncStorage.getItem("streetleaf.installOptions.v1")) ?? "null")).toEqual(OPTIONS);
+    });
+  });
+
+  describe("scrolling", () => {
+    beforeEach(() => {
+      mockFormScroll.showTop.mockClear();
+      mockFormScroll.bottomFieldProps.onFocus.mockClear();
+    });
+
+    it("scrolls Notes into view above the keyboard when it's tapped", async () => {
+      await renderScreen({ online: true });
+      await fireEvent(screen.getByLabelText("Notes"), "focus");
+      expect(mockFormScroll.bottomFieldProps.onFocus).toHaveBeenCalled();
+    });
+
+    it("scrolls to the top after a submission, to show the outcome (e.g. offline)", async () => {
+      await renderScreen({ online: false });
+      await screen.findByText("Latitude 27.950575");
+      await fillRequired("CHA-1157");
+      await submit();
+      await screen.findByText(/saved on this phone/);
+      expect(mockFormScroll.showTop).toHaveBeenCalledTimes(1);
+    });
+
+    it("scrolls to the top when Submit is blocked by missing fields", async () => {
+      await renderScreen({ online: true });
+      await screen.findByText("Latitude 27.950575");
+      await submit();
+      expect(screen.getByText("Select a project.")).toBeTruthy();
+      expect(mockFormScroll.showTop).toHaveBeenCalledTimes(1);
     });
   });
 });

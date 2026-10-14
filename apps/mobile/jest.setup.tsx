@@ -57,3 +57,19 @@ jest.mock("expo-crypto", () => {
   let n = 0;
   return { randomUUID: jest.fn(() => `uuid-${++n}`) };
 });
+
+// Safe-area insets as on a notched iPhone (status bar 59, home indicator 34),
+// so screens and modals can be checked to keep clear of them. Tests that
+// need other values mock the module themselves.
+jest.mock("react-native-safe-area-context", () => {
+  const actual = jest.requireActual("react-native-safe-area-context");
+  const insets = { top: 59, bottom: 34, left: 0, right: 0 };
+  const frame = { x: 0, y: 0, width: 393, height: 852 };
+  return {
+    ...actual,
+    SafeAreaProvider: ({ children }: { children: unknown }) => children,
+    useSafeAreaInsets: () => insets,
+    useSafeAreaFrame: () => frame,
+    initialWindowMetrics: { insets, frame },
+  };
+});

@@ -10,6 +10,7 @@ import {
 import { useInstallQueue } from "@/installs/InstallQueueProvider";
 import { PendingInstalls } from "@/installs/PendingInstalls";
 import { SerialField } from "@/installs/SerialField";
+import { useFormScroll } from "@/installs/useFormScroll";
 import { useInstallOptions } from "@/installs/useInstallOptions";
 import { POOR_ACCURACY_METERS, useLocationFix } from "@/location/useLocationFix";
 import { BarcodeScannerModal } from "@/scan/BarcodeScannerModal";
@@ -53,6 +54,9 @@ export default function InstallScreen() {
 
   const fix = location.status === "fixed" ? location.fix : null;
 
+  // Notes scrolls into view above the keyboard; after Submit, back to the top.
+  const { scrollRef, bottomFieldProps: notesScroll, showTop } = useFormScroll();
+
   async function handleSubmit() {
     setResult(null);
     const checked = validateInstallDraft({
@@ -65,6 +69,7 @@ export default function InstallScreen() {
     });
     if (!checked.ok) {
       setErrors(checked.errors);
+      showTop(); // the first fields (Project, Sticker) are at the top
       return;
     }
     setErrors({});
@@ -79,6 +84,8 @@ export default function InstallScreen() {
               message: `Install for ${checked.value.poleNumber} saved on this phone. It will be sent automatically when you're back online.`,
             },
       );
+      // Up to the top, where the outcome now shows beside the waiting/offline card.
+      showTop();
       // Ready for the next pole: this sticker is now used, so it leaves the
       // list. The project stays chosen while it has stickers left (the crew
       // is usually doing the next pole of the same job); it's cleared once
@@ -97,7 +104,9 @@ export default function InstallScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* The outcome of the last Submit, at the top with the waiting/offline card. */}
+        {result ? <Banner tone={result.tone} message={result.message} /> : null}
         <PendingInstalls />
 
         <View style={styles.card}>
@@ -209,11 +218,11 @@ export default function InstallScreen() {
               multiline
               maxLength={INSTALL_NOTES_MAX_LENGTH}
               placeholder="Anything the office should know"
+              {...notesScroll}
             />
             {errors.notes ? <Text style={styles.error}>{errors.notes}</Text> : null}
           </View>
 
-          {result ? <Banner tone={result.tone} message={result.message} /> : null}
           <Button label="Submit" loading={saving} onPress={() => void handleSubmit()} />
         </View>
       </ScrollView>
