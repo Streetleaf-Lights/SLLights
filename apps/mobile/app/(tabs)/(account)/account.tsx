@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth, useSignedInUser } from "@/auth/AuthProvider";
+import { TestingTools } from "@/installs/TestingTools";
 import { ListRow } from "@/ui/ListRow";
 import { Button } from "@/ui/Button";
 import { colors, radius, space, type } from "@/ui/theme";
@@ -42,6 +43,7 @@ export default function AccountScreen() {
         <Text style={styles.link}>Users</Text>
         <Text style={type.small}>People with access to the dashboard</Text>
       </ListRow>
+      <TestingTools />
       <Button
         label="Sign out"
         variant="secondary"

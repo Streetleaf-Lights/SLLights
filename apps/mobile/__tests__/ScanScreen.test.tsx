@@ -17,6 +17,16 @@ const mockFormScroll = {
   showTop: jest.fn(),
 };
 jest.mock("@/installs/useFormScroll", () => ({ useFormScroll: () => mockFormScroll }));
+// Records how the form asks for room for the keyboard.
+const mockKeyboardAvoiding: { behavior?: string }[] = [];
+jest.mock("react-native/Libraries/Components/Keyboard/KeyboardAvoidingView", () => {
+  const { View } = jest.requireActual("react-native");
+  const Mock = ({ behavior, ...props }: { behavior?: string } & Record<string, unknown>) => {
+    mockKeyboardAvoiding.push({ behavior });
+    return <View {...props} />;
+  };
+  return { __esModule: true, default: Mock };
+});
 jest.mock("expo-camera", () => {
   const { View } = jest.requireActual("react-native");
   return {
@@ -320,6 +330,8 @@ describe("Install form (Scan tab)", () => {
     await act(async () => emitConnection(true)); // back in signal
     await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByTestId("pending-installs")).toBeNull());
+    // The "saved on this phone" message goes once the install is sent.
+    expect(screen.queryByText(/saved on this phone/)).toBeNull();
     expect(saved()).toEqual([]);
   });
 
@@ -503,6 +515,19 @@ describe("Install form (Scan tab)", () => {
     });
   });
 
+  it("makes room for the keyboard on Android too (edge-to-edge apps aren't resized for it)", async () => {
+    const { Platform } = jest.requireActual("react-native");
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, "OS", { get: () => "android", configurable: true });
+    try {
+      mockKeyboardAvoiding.length = 0;
+      await renderScreen({ online: true });
+      expect(mockKeyboardAvoiding.at(-1)?.behavior).toBe("padding");
+    } finally {
+      Object.defineProperty(Platform, "OS", { get: () => originalOS, configurable: true });
+    }
+  });
+
   describe("scrolling", () => {
     beforeEach(() => {
       mockFormScroll.showTop.mockClear();
@@ -531,5 +556,18 @@ describe("Install form (Scan tab)", () => {
       expect(screen.getByText("Select a project.")).toBeTruthy();
       expect(mockFormScroll.showTop).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("keeps the 'saved on this phone' message while the server refuses the install", async () => {
+    const send = jest.fn(async (): Promise<SendResult> => ({ kind: "rejected", error: "Different serials." }));
+    await renderScreen({ online: false, send });
+    await screen.findByText("Latitude 27.950575");
+    await fillRequired("CHA-1157");
+    await submit();
+    await screen.findByText(/saved on this phone/);
+    await act(async () => emitConnection(true));
+    await waitFor(() => expect(send).toHaveBeenCalled());
+    expect(await screen.findByText("Needs attention")).toBeTruthy();
+    expect(screen.getByText(/saved on this phone/)).toBeTruthy(); // still something for the crew to deal with
   });
 });

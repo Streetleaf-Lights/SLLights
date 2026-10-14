@@ -36,6 +36,12 @@ interface InstallQueueValue {
    * install frees its sticker again.
    */
   submittedStickers: ReadonlySet<string>;
+  /**
+   * TESTING ONLY (development builds): forget which stickers this phone has
+   * submitted, so test poles show in the Install form again. Unsent installs
+   * are kept. Airtable still has any recorded installs for those poles.
+   */
+  forgetSubmittedStickers: () => Promise<void>;
 }
 
 const Ctx = createContext<InstallQueueValue | null>(null);
@@ -155,10 +161,15 @@ export function InstallQueueProvider({ children, queueOverride }: { children: Re
     [queue, submitted, saveSubmitted],
   );
   const submittedStickers = useMemo(() => new Set(submitted.map((entry) => entry.key)), [submitted]);
+  // Keep the stickers of installs still on the phone (waiting or needing attention) — only sent ones are forgotten.
+  const forgetSubmittedStickers = useCallback(async () => {
+    const onPhone = new Set(items.map((item) => item.submission.id));
+    await saveSubmitted(submitted.filter((entry) => onPhone.has(entry.installId)));
+  }, [items, submitted, saveSubmitted]);
 
   const value = useMemo(
-    () => ({ items, online, sending, submit, sendNow, retry, remove, submittedStickers }),
-    [items, online, sending, submit, sendNow, retry, remove, submittedStickers],
+    () => ({ items, online, sending, submit, sendNow, retry, remove, submittedStickers, forgetSubmittedStickers }),
+    [items, online, sending, submit, sendNow, retry, remove, submittedStickers, forgetSubmittedStickers],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

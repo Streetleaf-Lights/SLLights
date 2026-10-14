@@ -1,6 +1,6 @@
-import { Keyboard } from "react-native";
+import { Keyboard, Platform } from "react-native";
 import { act, renderHook } from "@testing-library/react-native";
-import { useFormScroll } from "@/installs/useFormScroll";
+import { ANDROID_KEYBOARD_LAYOUT_DELAY_MS, useFormScroll } from "@/installs/useFormScroll";
 
 let keyboardDidShow: () => void = () => undefined;
 const scrollView = { scrollTo: jest.fn(), scrollToEnd: jest.fn() };
@@ -59,5 +59,38 @@ describe("useFormScroll", () => {
     await act(async () => result.current.showTop());
     expect(Keyboard.dismiss).toHaveBeenCalled();
     expect(scrollView.scrollTo).toHaveBeenCalledWith({ y: 0, animated: true });
+  });
+
+  describe("on Android", () => {
+    const originalOS = Platform.OS;
+    const setOS = (os: "ios" | "android") => Object.defineProperty(Platform, "OS", { get: () => os, configurable: true });
+    beforeEach(() => {
+      setOS("android");
+      jest.useFakeTimers();
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+      setOS(originalOS as "ios" | "android");
+    });
+
+    it("waits for the room made for the keyboard to be laid out, then scrolls once", async () => {
+      const { result } = await setup();
+      await act(async () => result.current.bottomFieldProps.onFocus());
+      await act(async () => keyboardDidShow());
+      expect(scrollView.scrollToEnd).not.toHaveBeenCalled(); // not into the old layout
+      await act(async () => {
+        jest.advanceTimersByTime(ANDROID_KEYBOARD_LAYOUT_DELAY_MS);
+      });
+      expect(scrollView.scrollToEnd).toHaveBeenCalledTimes(1);
+    });
+
+    it("doesn't scroll after the screen has closed", async () => {
+      const { result, unmount } = await setup();
+      await act(async () => result.current.bottomFieldProps.onFocus());
+      await act(async () => keyboardDidShow());
+      await unmount();
+      jest.advanceTimersByTime(ANDROID_KEYBOARD_LAYOUT_DELAY_MS);
+      expect(scrollView.scrollToEnd).not.toHaveBeenCalled();
+    });
   });
 });

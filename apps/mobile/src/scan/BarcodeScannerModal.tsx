@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import * as Haptics from "expo-haptics";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { modalSystemBars, useModalSafeArea } from "@/ui/modalSafeArea";
 import { Ionicons } from "@expo/vector-icons";
 import { SCAN_BARCODE_TYPES } from "@/scan/config";
 import { barcodeCenter, createSteadyReading, insideFrame, type Rect } from "@/scan/scanFrame";
@@ -32,10 +32,8 @@ export function BarcodeScannerModal({
   onClose: () => void;
 }) {
   const [permission, requestPermission] = useCameraPermissions();
-  // The app's safe-area insets, applied as padding (see SelectField: a
-  // SafeAreaView inside a Modal can measure zero on first opening).
-  const insets = useSafeAreaInsets();
-  const safeArea = { paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right };
+  // Clear of the status bar and home indicator on both platforms (see modalSafeArea.ts).
+  const safeArea = useModalSafeArea();
   const [torchOn, setTorchOn] = useState(false);
   // The code currently in the frame. Updates as the crew move the phone;
   // nothing is used until they confirm it.
@@ -77,9 +75,7 @@ export function BarcodeScannerModal({
       visible={visible}
       animationType="slide"
       onRequestClose={onClose}
-      // Full screen on Android too, as on iOS, so the inset padding is right on both.
-      statusBarTranslucent
-      navigationBarTranslucent
+      {...modalSystemBars}
     >
       <View style={[styles.safe, safeArea]}>
         <View style={styles.top}>

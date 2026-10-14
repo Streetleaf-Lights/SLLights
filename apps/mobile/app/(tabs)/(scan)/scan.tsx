@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Crypto from "expo-crypto";
 import { remainingInstallOptions, stickerKey } from "@sllights/shared/install-options";
 import {
@@ -36,7 +36,7 @@ const SCAN_TITLES: Record<ScanTarget, string> = {
  * signal and nothing is lost.
  */
 export default function InstallScreen() {
-  const { submit, submittedStickers } = useInstallQueue();
+  const { submit, submittedStickers, items } = useInstallQueue();
   const options = useInstallOptions();
   // Projects and stickers not yet submitted from this phone (a project with none left drops out).
   const remaining = remainingInstallOptions(options.projects, submittedStickers);
@@ -50,7 +50,12 @@ export default function InstallScreen() {
   const [errors, setErrors] = useState<InstallFieldErrors>({});
   const [scanning, setScanning] = useState<ScanTarget | null>(null);
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<{ tone: "success" | "warning"; message: string } | null>(null);
+  // The outcome of the last Submit. A "saved on this phone" message belongs to
+  // its install, and stops showing once that install has been sent (left the
+  // phone); if the server refuses it instead, it stays, with Needs attention.
+  const [result, setResult] = useState<{ tone: "success" | "warning"; message: string; installId?: string } | null>(null);
+  const resultShown =
+    result && !(result.installId && !items.some((item) => item.submission.id === result.installId)) ? result : null;
 
   const fix = location.status === "fixed" ? location.fix : null;
 
@@ -75,13 +80,15 @@ export default function InstallScreen() {
     setErrors({});
     setSaving(true);
     try {
-      const outcome = await submit({ ...checked.value, id: Crypto.randomUUID(), capturedAt: new Date().toISOString() });
+      const installId = Crypto.randomUUID();
+      const outcome = await submit({ ...checked.value, id: installId, capturedAt: new Date().toISOString() });
       setResult(
         outcome === "sent"
           ? { tone: "success", message: `Install for ${checked.value.poleNumber} sent.` }
           : {
               tone: "warning",
               message: `Install for ${checked.value.poleNumber} saved on this phone. It will be sent automatically when you're back online.`,
+              installId,
             },
       );
       // Up to the top, where the outcome now shows beside the waiting/offline card.
@@ -102,11 +109,13 @@ export default function InstallScreen() {
     }
   }
 
+  // Keyboard room: "padding" on Android too — edge-to-edge Android apps (Expo
+  // SDK 54+) are no longer resized for the keyboard, so the form makes room.
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* The outcome of the last Submit, at the top with the waiting/offline card. */}
-        {result ? <Banner tone={result.tone} message={result.message} /> : null}
+        {resultShown ? <Banner tone={resultShown.tone} message={resultShown.message} /> : null}
         <PendingInstalls />
 
         <View style={styles.card}>

@@ -3,6 +3,10 @@ import AccountScreen from "../app/(tabs)/(account)/account";
 import { sessionStore } from "@/auth/sessionStore";
 import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
 
+// The testing tools need the install queue that surrounds this screen in the app; they're tested in TestingTools.test.tsx.
+jest.mock("@/installs/TestingTools", () => ({ TestingTools: () => null }));
+
+
 async function signedInAs(claims: Record<string, unknown>, role: string) {
   const token = makeToken({ sub: "u1", role, exp: futureExp(), ...claims });
   await sessionStore.save({
