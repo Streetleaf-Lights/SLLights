@@ -6,6 +6,8 @@ import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/h
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 
 // Record each Tabs.Screen's options instead of rendering real navigation.
+const mockReplace = jest.fn();
+let mockPathname = "/";
 jest.mock("expo-router", () => {
   const { Text } = jest.requireActual("react-native");
   function Tabs({ children, safeAreaInsets }: { children: unknown; safeAreaInsets?: { bottom: number } }) {
@@ -20,7 +22,11 @@ jest.mock("expo-router", () => {
     return <Text testID={`tab-${name}`}>{`${options.title}|${options.href === null ? "hidden" : "shown"}`}</Text>;
   }
   Tabs.Screen = TabScreen;
-  return { Tabs };
+  return {
+    Tabs,
+    useRouter: () => ({ replace: mockReplace }),
+    usePathname: () => mockPathname,
+  };
 });
 
 let mockBottomInset = 34;
@@ -31,6 +37,13 @@ jest.mock("react-native-safe-area-context", () => ({
 async function signIn(role: string, customerId: string | null) {
   const token = makeToken({ sub: "u1", role, exp: futureExp(), ...(customerId ? { customerId } : {}) });
   await sessionStore.save({ token, user: { id: "u1", name: "U", email: "u@x.com", role, customerId } });
+}
+
+/** Signs in as the role and renders the tab bar, waiting for it to appear. */
+async function renderTabs(role: string, customerId: string | null) {
+  await signIn(role, customerId);
+  await render(<TabsLayout />, { wrapper: withSignedInAuth(fakeApi()) });
+  await screen.findByTestId("tab-(home)");
 }
 
 describe("Tabs", () => {
@@ -77,5 +90,29 @@ describe("Tabs", () => {
     await signIn("Streetleaf Admin", null);
     await render(<TabsLayout />, { wrapper: withSignedInAuth(fakeApi()) });
     expect(await screen.findByTestId("tab-bar-bottom-inset")).toHaveTextContent(expected);
+  });
+
+  describe("starting screen", () => {
+    beforeEach(() => {
+      mockReplace.mockClear();
+      mockPathname = "/";
+    });
+
+    it("takes a crew member from the default screen to Install, once", async () => {
+      await renderTabs("Streetleaf Crew", null);
+      expect(mockReplace).toHaveBeenCalledWith("/scan");
+      expect(mockReplace).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves a crew member where they are when the app opened on a specific screen", async () => {
+      mockPathname = "/project/c1/p1";
+      await renderTabs("Streetleaf Crew", null);
+      expect(mockReplace).not.toHaveBeenCalled();
+    });
+
+    it.each([["Streetleaf Admin", null], ["Customer Owner", "c1"], ["User", null]])("leaves %s on their usual home", async (role, customerId) => {
+      await renderTabs(role, customerId);
+      expect(mockReplace).not.toHaveBeenCalled();
+    });
   });
 });

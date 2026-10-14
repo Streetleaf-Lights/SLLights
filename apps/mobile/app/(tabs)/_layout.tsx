@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { useEffect, useRef } from "react";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { canUseFieldTools, isCustomerScoped } from "@sllights/shared/auth-role";
+import { isCrew } from "@sllights/shared/crew-access";
 import { useSignedInUser } from "@/auth/AuthProvider";
 import { InstallQueueProvider } from "@/installs/InstallQueueProvider";
 import { tabBarBottomInset } from "@/ui/tabBar";
@@ -20,6 +22,20 @@ export default function TabsLayout() {
   const homeTitle = isCustomerScoped(claims.role, claims.customerId) ? "Projects" : "Customers";
   // Installs are field work: only Streetleaf Admin and Streetleaf Crew get the tab.
   const showScan = canUseFieldTools(claims.role);
+
+  // Crews are in the field to install, so they start on the Install tab:
+  // once, when the signed-in app first opens on the default screen ("/").
+  // They can still tap Customers any time; a launch that opens a specific
+  // screen is left alone. Everyone else (Streetleaf Admins included) starts
+  // on Customers/Projects as before.
+  const router = useRouter();
+  const pathname = usePathname();
+  const startChecked = useRef(false);
+  useEffect(() => {
+    if (startChecked.current) return;
+    startChecked.current = true;
+    if (isCrew(claims.role) && pathname === "/") router.replace("/scan");
+  }, [claims.role, pathname, router]);
 
   // The offline install queue runs for the whole signed-in session (not just
   // while the Scan tab is open), so saved installs go out as soon as

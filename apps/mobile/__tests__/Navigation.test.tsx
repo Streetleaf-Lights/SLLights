@@ -176,4 +176,18 @@ describe("navigation inside the tabs", () => {
     await waitFor(() => expect(router.getSegments()).toEqual(["(tabs)", "(account)", "users"]));
     await expectTabBar("Customers", "Poles", "Account");
   });
+
+  it("starts crews on the Install tab", async () => {
+    await signIn("Streetleaf Crew", null);
+    const router = await renderRouter(routes, { initialUrl: "/", wrapper: withSignedInAuth(api()) });
+    await waitFor(() => expect(router.getSegments()).toEqual(["(tabs)", "(scan)", "scan"]));
+    expect(await screen.findByRole("button", { name: /^Project: / })).toBeTruthy(); // the install form
+    await expectTabBar("Customers", "Install", "Account"); // the other tabs are still there
+  });
+
+  it("still starts Streetleaf Admins on Customers, even though they have the Install tab", async () => {
+    await signIn("Streetleaf Admin", null);
+    const router = await renderRouter(routes, { initialUrl: "/", wrapper: withSignedInAuth(api()) });
+    await waitFor(() => expect(router.getSegments()[1]).toBe("(home)"));
+  });
 });

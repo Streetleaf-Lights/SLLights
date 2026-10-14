@@ -33,12 +33,19 @@ export default async function PolesPage({
     (!customerScoped || customerId === sessionUser?.customerId) &&
     (!crew || (crew.customerIds.has(customerId ?? "") && (!projectId || crew.projectIds.has(projectId))));
 
-  if (isFaultsRequest && customerId) {
-    const [rawPoles, customer, projects] = await Promise.all([
-      projectId ? getPoles({ projectId }, token) : getPoles({ customerId }, token),
-      getCustomer(customerId, token),
-      getProjectsForCustomer(customerId, token),
-    ]);
+  const faultsData =
+    isFaultsRequest && customerId
+      ? await Promise.all([
+          projectId ? getPoles({ projectId }, token) : getPoles({ customerId }, token),
+          getCustomer(customerId, token),
+          getProjectsForCustomer(customerId, token),
+        ])
+      : null;
+  // A projectId that isn't this customer's (e.g. a hand-edited URL) isn't a
+  // faults view of this customer: fall through to the normal list, as for a
+  // mismatched customerId above.
+  if (faultsData && customerId && (!projectId || faultsData[2].some((p) => p.id === projectId))) {
+    const [rawPoles, customer, projects] = faultsData;
     // A pole that's never reported, or hasn't reported in 48h+, has no
     // reliable telemetry basis for its fault flag either (same reasoning
     // as the dash shown elsewhere for Unknown/stale poles) — excluded
@@ -47,8 +54,11 @@ export default async function PolesPage({
       (pole) =>
         pole.isPoleFault === true &&
         !isSilentPole(pole.lastUpdate) &&
-        // Crew: this customer's poles in their projects only, whatever APIM returned.
-        (!crew || (pole.customerId === customerId && crew.projectIds.has(pole.projectId))),
+        // Only this customer's poles (and this project's, if given), whatever APIM returned.
+        pole.customerId === customerId &&
+        (!projectId || pole.projectId === projectId) &&
+        // Crew: only their projects.
+        (!crew || crew.projectIds.has(pole.projectId)),
     );
     const projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
 

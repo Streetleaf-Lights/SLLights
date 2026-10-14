@@ -270,8 +270,9 @@ export async function getProjectsForCustomer(
 /**
  * GET /getProjects with no filter — every project (each with its
  * customerId and stickerNumbers). Used to work out a Streetleaf Crew
- * login's projects. Cached like the other reads (APIM_CACHE_SECONDS).
- * ASSUMPTION: /getProjects without customerId returns all projects; confirm.
+ * login's projects and the Install form's options. Cached like the other
+ * reads (APIM_CACHE_SECONDS). Confirmed: /getProjects without customerId
+ * returns every project.
  */
 export async function getAllProjects(token?: string | null): Promise<Project[]> {
   const raw = await apimFetch<RawProject[]>("/getProjects", { token });

@@ -246,3 +246,39 @@ describe("web dashboard: Streetleaf Crew", () => {
     expect(shown).not.toContain("PAS-2");
   });
 });
+
+describe("web faults view: every pole shown belongs to the customer in the URL", () => {
+  const owner = { id: "own1", role: "Customer Owner", customerId: "c1" };
+
+  it("won't show another customer's project to a customer user who edits the URL", async () => {
+    m.sessionUser.mockResolvedValue(owner);
+    // APIM answers a projectId query with that project's poles — here c3's project p4.
+    m.getPoles.mockImplementation(async (f: { projectId?: string; customerId?: string }) =>
+      f?.projectId === "p4" ? [pole("PAS-4", "p4", "c3")] : [pole("PAS-1", "p1", "c1"), pole("PAS-2", "p2", "c1")],
+    );
+    render(await PolesPage({ searchParams: params({ customerId: "c1", projectId: "p4", faults: "1" }) }));
+    const shown = (m.captured.PolesTable as { poles: { poleNumber: string; customerId: string }[] }).poles;
+    expect(shown.map((p) => p.poleNumber)).not.toContain("PAS-4");
+    expect(shown.every((p) => p.customerId === "c1")).toBe(true);
+    // …because it isn't treated as a faults view at all: the normal list instead (no Project column).
+    expect((m.captured.PolesTable as { projectNames?: unknown }).projectNames).toBeUndefined();
+  });
+
+  it("still shows a customer user their own project's faults", async () => {
+    m.sessionUser.mockResolvedValue(owner);
+    m.getPoles.mockImplementation(async (f: { projectId?: string }) =>
+      f?.projectId === "p1" ? [pole("PAS-1", "p1", "c1")] : [],
+    );
+    render(await PolesPage({ searchParams: params({ customerId: "c1", projectId: "p1", faults: "1" }) }));
+    const props = m.captured.PolesTable as { poles: { poleNumber: string }[]; projectNames?: Record<string, string> };
+    expect(props.poles.map((p) => p.poleNumber)).toEqual(["PAS-1"]);
+    expect(props.projectNames).toBeTruthy(); // the faults view (with its Project column), not the fallback list
+  });
+
+  it("drops poles of other customers even if APIM returns them (any role)", async () => {
+    m.sessionUser.mockResolvedValue(staff);
+    m.getPoles.mockResolvedValue([pole("PAS-1", "p1", "c1"), pole("PAS-9", "p9", "c9")]);
+    render(await PolesPage({ searchParams: params({ customerId: "c1", faults: "1" }) }));
+    expect((m.captured.PolesTable as { poles: { poleNumber: string }[] }).poles.map((p) => p.poleNumber)).toEqual(["PAS-1"]);
+  });
+});
