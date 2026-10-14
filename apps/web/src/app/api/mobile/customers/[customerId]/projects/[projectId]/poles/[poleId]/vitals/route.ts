@@ -3,6 +3,7 @@ import type { PoleVitalsResponse } from "@sllights/shared/api-contract";
 import { isVitalsDays, vitalsLimitForDays } from "@sllights/shared/vitals-chart";
 import { ApimError, getPoleVitalsByPeriod, getPoleVitalsForCustomer } from "@/lib/apim";
 import { canViewCustomer } from "@/lib/mobile-views";
+import { crewMaySee } from "@/lib/crew-scope";
 import { requireSession } from "@/lib/require-session";
 
 /**
@@ -33,6 +34,8 @@ export async function GET(
 
   const notFound = NextResponse.json({ error: "Pole not found." }, { status: 404 });
   if (!canViewCustomer(session, customerId)) return notFound;
+  // Streetleaf Crew: only projects with sticker numbers.
+  if (!(await crewMaySee(session, token, customerId, projectId))) return notFound;
 
   try {
     const vitals = await getPoleVitalsForCustomer(customerId, token);

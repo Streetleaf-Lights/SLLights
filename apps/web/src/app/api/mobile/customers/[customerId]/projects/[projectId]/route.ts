@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ApimError, getCustomer, getPoleVitalsForCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { canViewCustomer, toProjectDetail } from "@/lib/mobile-views";
+import { crewMaySee } from "@/lib/crew-scope";
 import { requireSession } from "@/lib/require-session";
 
 /**
@@ -19,6 +20,8 @@ export async function GET(
 
   const notFound = NextResponse.json({ error: "Project not found." }, { status: 404 });
   if (!canViewCustomer(session, customerId)) return notFound;
+  // Streetleaf Crew: only projects with sticker numbers.
+  if (!(await crewMaySee(session, token, customerId, projectId))) return notFound;
 
   try {
     const [customer, projects, vitals] = await Promise.all([

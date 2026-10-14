@@ -3,7 +3,8 @@ import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { paginate } from "@sllights/shared/pagination";
 import { useApiQuery } from "@/api/useApiQuery";
-import { useAuth } from "@/auth/AuthProvider";
+import { isCrew } from "@sllights/shared/crew-access";
+import { useAuth, useSignedInUser } from "@/auth/AuthProvider";
 import { ListRow } from "@/ui/ListRow";
 import { Pagination } from "@/ui/Pagination";
 import { QueryStatus } from "@/ui/QueryStatus";
@@ -13,6 +14,7 @@ import { colors, space, type } from "@/ui/theme";
 /** Streetleaf staff: active customers (the web's /customers page), searchable by name. */
 export function CustomerListView() {
   const { api } = useAuth();
+  const { claims } = useSignedInUser();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -65,7 +67,16 @@ export function CustomerListView() {
           <Pagination page={current.page} totalPages={current.totalPages} onPageChange={goToPage} />
         </View>
       }
-      ListEmptyComponent={<Text style={type.small}>No customers match “{query.trim()}”.</Text>}
+      ListEmptyComponent={
+        <Text style={type.small}>
+          {query.trim()
+            ? `No customers match “${query.trim()}”.`
+            : isCrew(claims.role)
+              ? // Crew only see customers with a project that has sticker numbers.
+                "No projects have sticker numbers yet. Customers appear here once a project has stickers issued."
+              : "No customers yet."}
+        </Text>
+      }
       ItemSeparatorComponent={() => <View style={{ height: space.sm }} />}
       renderItem={({ item: customer }) => (
         <ListRow

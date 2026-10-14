@@ -323,6 +323,18 @@ describe("ProjectDetailView", () => {
 
 });
 
+describe("CustomerListView empty states", () => {
+  it.each([
+    ["Streetleaf Crew", "No projects have sticker numbers yet. Customers appear here once a project has stickers issued."],
+    ["Streetleaf Admin", "No customers yet."],
+  ])("explains an empty list to %s", async (role, message) => {
+    await signIn(role, null);
+    const api = fakeApi({ listCustomers: jest.fn().mockResolvedValue({ customers: [] }) });
+    await render(<CustomerListView />, { wrapper: withSignedInAuth(api) });
+    expect(await screen.findByText(message)).toBeTruthy();
+  });
+});
+
 describe("ProjectDetailView map", () => {
   const polesAt = (n: number, coords: (i: number) => { lat: number | null; long: number | null }) =>
     Array.from({ length: n }, (_, i) => ({

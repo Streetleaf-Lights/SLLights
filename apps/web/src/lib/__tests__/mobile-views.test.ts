@@ -14,7 +14,7 @@ const customer = {
   active: true,
 } as Customer;
 
-const project = (id: string, name: string): Project => ({ id, name, leadsunProject: null, active: true });
+const project = (id: string, name: string): Project => ({ id, name, leadsunProject: null, active: true, customerId: null, stickerNumbers: [] });
 
 const pole = (poleNumber: string, issues: string[] = []) =>
   ({

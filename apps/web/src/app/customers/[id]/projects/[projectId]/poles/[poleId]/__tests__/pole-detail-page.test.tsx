@@ -91,6 +91,8 @@ const projects: Project[] = [
     id: "p1",
     name: "Bayou District Rebuild",
     leadsunProject: null,
+    customerId: null,
+    stickerNumbers: [],
     active: true,
   },
 ];

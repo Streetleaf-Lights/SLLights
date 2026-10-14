@@ -3,6 +3,7 @@ import type { PoleLookupResponse } from "@sllights/shared/api-contract";
 import { isCustomerScoped } from "@sllights/shared/auth-role";
 import { POLE_NUMBER_PATTERN } from "@sllights/shared/scan";
 import { ApimError, getPoles } from "@/lib/apim";
+import { crewScope } from "@/lib/crew-scope";
 import { requireSession } from "@/lib/require-session";
 
 /**
@@ -43,7 +44,10 @@ export async function GET(request: NextRequest) {
     const match = poles.find((pole) => pole.poleNumber.toUpperCase() === poleNumber) ?? null;
     // Belt and braces: never return another customer's pole even if APIM
     // ignored the customerId filter.
-    const pole = match && customerScoped && match.customerId !== session.customerId ? null : match;
+    let pole = match && customerScoped && match.customerId !== session.customerId ? null : match;
+    // Streetleaf Crew: only poles in projects with sticker numbers.
+    const crew = pole ? await crewScope(session, token) : null;
+    if (pole && crew && !crew.projectIds.has(pole.projectId)) pole = null;
 
     const body: PoleLookupResponse = { pole };
     return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });

@@ -234,10 +234,21 @@ export interface RawProject {
   // May arrive as a JSON string rather than an already-parsed object.
   leadsunProject?: LeadsunProject | string | null;
   active: boolean;
+  customerId?: string | null;
+  /** JSON-stringified string[] (like poleNumbers), e.g. '["CHA-1157","CHA-1158"]'; may also arrive already parsed. */
+  stickerNumbers?: string | string[] | null;
+}
+
+/** stickerNumbers as a clean list, whether it arrives as a JSON string or an array. */
+export function parseStickerNumbers(raw: string | string[] | null | undefined): string[] {
+  const list = Array.isArray(raw) ? raw.map(String) : parseJsonStringArray(raw);
+  return list.map((n) => n.trim()).filter(Boolean);
 }
 
 export function normalizeProject(raw: RawProject): Project {
   return {
+    customerId: raw.customerId ?? null,
+    stickerNumbers: parseStickerNumbers(raw.stickerNumbers),
     id: raw.id,
     name: raw.name,
     leadsunProject: parseLeadsunProject(raw.leadsunProject),
@@ -253,6 +264,17 @@ export async function getProjectsForCustomer(
     `/getProjects?customerId=${encodeURIComponent(customerId)}`,
     { token },
   );
+  return raw.map(normalizeProject);
+}
+
+/**
+ * GET /getProjects with no filter — every project (each with its
+ * customerId and stickerNumbers). Used to work out a Streetleaf Crew
+ * login's projects. Cached like the other reads (APIM_CACHE_SECONDS).
+ * ASSUMPTION: /getProjects without customerId returns all projects; confirm.
+ */
+export async function getAllProjects(token?: string | null): Promise<Project[]> {
+  const raw = await apimFetch<RawProject[]>("/getProjects", { token });
   return raw.map(normalizeProject);
 }
 

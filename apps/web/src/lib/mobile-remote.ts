@@ -3,6 +3,7 @@ import { findLeadsunGroupForProduct, findLeadsunProduct } from "@sllights/shared
 import type { LeadsunGroup, LeadsunProduct, LeadsunProject, SessionUser } from "@sllights/shared/types";
 import { getPoleVitalsForCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { canViewCustomer } from "@/lib/mobile-views";
+import { crewMaySee } from "@/lib/crew-scope";
 
 export type ResolvedPoleRemote =
   | { ok: true; leadsunProject: LeadsunProject | null; product: LeadsunProduct | undefined; group: LeadsunGroup | undefined }
@@ -24,6 +25,8 @@ export async function resolvePoleRemote(
 ): Promise<ResolvedPoleRemote> {
   const notFound = { ok: false as const, response: NextResponse.json({ error: "Pole not found." }, { status: 404 }) };
   if (!canViewCustomer(session, customerId)) return notFound;
+  // Streetleaf Crew: only projects with sticker numbers.
+  if (!(await crewMaySee(session, token, customerId, projectId))) return notFound;
 
   const [projects, vitals] = await Promise.all([
     getProjectsForCustomer(customerId, token),

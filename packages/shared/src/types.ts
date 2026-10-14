@@ -75,6 +75,13 @@ export interface Project {
   name: string;
   leadsunProject: LeadsunProject | null;
   active: boolean;
+  /** The project's customer, when APIM includes it (it does on /getProjects). */
+  customerId: string | null;
+  /**
+   * Pole sticker numbers issued for the project (e.g. "CHA-1157"). A project
+   * with any is one Streetleaf Crew work on — see crew-access.ts.
+   */
+  stickerNumbers: string[];
 }
 
 /**

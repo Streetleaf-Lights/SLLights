@@ -6,6 +6,7 @@ import type { LeadsunLampStatus, LeadsunProject, Project, SessionUser } from "@s
 import { ApimError, getProjectsForCustomer, setPoleLights } from "@/lib/apim";
 import { fetchLeadsunLampStatus } from "@/lib/leadsunClient";
 import { canViewCustomer } from "@/lib/mobile-views";
+import { crewMaySee } from "@/lib/crew-scope";
 import { requireSession } from "@/lib/require-session";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ async function resolveProject(
 ): Promise<{ ok: true; project: Project } | { ok: false; response: NextResponse }> {
   const notFound = { ok: false as const, response: NextResponse.json({ error: "Project not found." }, { status: 404 }) };
   if (!canViewCustomer(session, customerId)) return notFound;
+  // Streetleaf Crew: only projects with sticker numbers.
+  if (!(await crewMaySee(session, token, customerId, projectId))) return notFound;
   const project = (await getProjectsForCustomer(customerId, token)).find((p) => p.id === projectId);
   return project ? { ok: true, project } : notFound;
 }

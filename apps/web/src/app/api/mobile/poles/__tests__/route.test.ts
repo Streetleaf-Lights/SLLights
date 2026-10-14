@@ -157,3 +157,11 @@ describe("the per-scope cache", () => {
     expect(getPolesMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("faults view, defensively", () => {
+  it("never lists another customer's poles, even if APIM ignores the customer filter", async () => {
+    getPolesMock.mockResolvedValue([pole(1, { isPoleFault: true }), pole(2, { isPoleFault: true, customerId: "c9" })]);
+    const body = await (await call(staff, "?faults=1&customerId=c1")).json();
+    expect(body.rows.map((r: { poleNumber: string }) => r.poleNumber)).toEqual(["PAS-1"]);
+  });
+});

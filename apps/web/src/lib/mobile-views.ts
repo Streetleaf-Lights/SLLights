@@ -30,10 +30,29 @@ function lightStats(vitals: ProjectVitals | undefined): LightStats {
 }
 
 /** Mirrors the web's CustomerOverview: customer header, summary stats, project list in API order. */
+/**
+ * Totals over some projects: lights, connected and faults added up; % working
+ * averaged weighted by each project's light count. Null when none have data.
+ */
+export function sumLightStats(projects: (ProjectVitals | undefined)[]): LightStats {
+  const withData = projects.filter((p): p is ProjectVitals => p !== undefined);
+  if (withData.length === 0) return { totalLights: null, connectedLights: null, totalFaults: null, percentWorking: null };
+  const totalLights = withData.reduce((n, p) => n + (p.totalLights ?? 0), 0);
+  const weighted = withData.reduce((n, p) => n + (p.percentWorking ?? 0) * (p.totalLights ?? 0), 0);
+  return {
+    totalLights,
+    connectedLights: withData.reduce((n, p) => n + (p.connectedLights ?? 0), 0),
+    totalFaults: withData.reduce((n, p) => n + (p.totalFaults ?? 0), 0),
+    percentWorking: totalLights > 0 ? weighted / totalLights : null,
+  };
+}
+
 export function toCustomerOverview(
   customer: Customer,
   projects: Project[],
   vitals: CustomerPoleVitals | undefined,
+  /** Streetleaf Crew: totals over the listed (sticker) projects only, not the whole customer. */
+  { summaryOverListedProjects = false }: { summaryOverListedProjects?: boolean } = {},
 ): CustomerOverviewResponse {
   const vitalsByProjectId = new Map(vitals?.projects.map((p) => [p.id, p]));
   return {
@@ -44,7 +63,9 @@ export function toCustomerOverview(
       phone: customer.phone,
       active: customer.active,
     },
-    summary: lightStats(vitals),
+    summary: summaryOverListedProjects
+      ? sumLightStats(projects.map((p) => vitalsByProjectId.get(p.id)))
+      : lightStats(vitals),
     projects: projects.map((project) => ({
       id: project.id,
       name: project.name,

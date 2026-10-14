@@ -6,6 +6,7 @@ import { paginate } from "@sllights/shared/pagination";
 import { ApimError, getCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { canViewCustomer } from "@/lib/mobile-views";
 import { cachedPoles, toPoleListRow } from "@/lib/mobile-poles";
+import { crewMaySee, crewScope } from "@/lib/crew-scope";
 import { requireSession } from "@/lib/require-session";
 
 /**
@@ -63,12 +64,21 @@ export async function GET(request: NextRequest) {
       // reported within 48h (their fault flag has no reliable basis).
       poles = all.filter(
         (pole) =>
+          // This customer's poles only, even if APIM ignored the customerId filter.
+          pole.customerId === customerId &&
           (!projectId || pole.projectId === projectId) &&
           pole.isPoleFault === true &&
           !isSilentPole(pole.lastUpdate),
       );
     } else {
       poles = await cachedPoles(viewerScoped ? { customerId: session.customerId as string } : {}, token);
+    }
+
+    // Streetleaf Crew: only poles in projects with sticker numbers.
+    const crew = await crewScope(session, token);
+    if (crew) {
+      if (faults && customerId && !(await crewMaySee(session, token, customerId, projectId))) return notFound;
+      poles = poles.filter((pole) => crew.projectIds.has(pole.projectId));
     }
 
     // Belt and braces: never show a customer-scoped viewer anyone else's pole.

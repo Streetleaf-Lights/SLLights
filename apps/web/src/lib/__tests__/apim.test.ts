@@ -2106,3 +2106,16 @@ describe("resetPassword", () => {
     });
   });
 });
+
+describe("stickerNumbers", () => {
+  it("parses the JSON-string form, an array, or nothing", async () => {
+    const { parseStickerNumbers, normalizeProject } = await import("@/lib/apim");
+    expect(parseStickerNumbers('["CHA-1157", " CHA-1158 ", ""]')).toEqual(["CHA-1157", "CHA-1158"]);
+    expect(parseStickerNumbers(["BAB-1"])).toEqual(["BAB-1"]);
+    expect(parseStickerNumbers(null)).toEqual([]);
+    expect(parseStickerNumbers("not json")).toEqual([]);
+    expect(
+      normalizeProject({ id: "p", name: "P", active: true, customerId: "c1", stickerNumbers: '["CHA-1"]' }),
+    ).toMatchObject({ customerId: "c1", stickerNumbers: ["CHA-1"] });
+  });
+});

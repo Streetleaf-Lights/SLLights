@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { CustomerListResponse } from "@sllights/shared/api-contract";
 import { isCustomerScoped } from "@sllights/shared/auth-role";
 import { ApimError, getCustomers } from "@/lib/apim";
+import { crewScope } from "@/lib/crew-scope";
 import { requireSession } from "@/lib/require-session";
 
 /**
@@ -19,9 +20,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const customers = await getCustomers({ active: true }, token);
+    const [customers, crew] = await Promise.all([getCustomers({ active: true }, token), crewScope(session, token)]);
+    // Streetleaf Crew: only customers with a project that has sticker numbers.
+    const visible = crew ? customers.filter((c) => crew.customerIds.has(c.id)) : customers;
     const body: CustomerListResponse = {
-      customers: customers
+      customers: visible
         .map((customer) => ({ id: customer.id, name: customer.name }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     };

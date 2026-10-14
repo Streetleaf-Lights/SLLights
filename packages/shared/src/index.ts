@@ -13,5 +13,6 @@ export * from "./remote-control";
 export * from "./users";
 export * from "./password";
 export * from "./install-submission";
+export * from "./crew-access";
 export * from "./api-contract";
 export { colors, type ColorToken } from "./theme";
