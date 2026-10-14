@@ -20,6 +20,9 @@ export const INSTALL_FIELDS = {
   lightHeadSerial: "Lighthead Serial",
   location: "Location Coordinates ",
   notes: "Notes",
+  installedBy: "Installed By",
+  capturedAt: "Captured At",
+  installId: "Install ID",
 } as const;
 
 export class AirtableError extends Error {
@@ -43,14 +46,22 @@ function config() {
 /** The coordinates as the table records them: "Longitude: <long> Latitude: <lat>". */
 export const formatInstallLocation = (latitude: number, longitude: number) => `Longitude: ${longitude} Latitude: ${latitude}`;
 
-/** The Airtable fields for an install (Notes left out when empty). */
-export function installFields(install: InstallSubmission): Record<string, string> {
+/**
+ * The Airtable fields for an install (Notes left out when empty).
+ * `installedBy` comes from the server's own record of who is signed in —
+ * never from the phone's request.
+ */
+export function installFields(install: InstallSubmission, installedBy: string): Record<string, string> {
   return {
     [INSTALL_FIELDS.poleNumber]: install.poleNumber,
     [INSTALL_FIELDS.solarPanelSerial]: install.solarPanelSerial,
     [INSTALL_FIELDS.lightHeadSerial]: install.lightHeadSerial,
     [INSTALL_FIELDS.location]: formatInstallLocation(install.latitude, install.longitude),
     ...(install.notes ? { [INSTALL_FIELDS.notes]: install.notes } : {}),
+    [INSTALL_FIELDS.installedBy]: installedBy,
+    // When the crew submitted it on the phone (ISO-8601) — can be well before it reached Airtable.
+    [INSTALL_FIELDS.capturedAt]: install.capturedAt,
+    [INSTALL_FIELDS.installId]: install.id,
   };
 }
 
@@ -83,6 +94,7 @@ export interface InstallRecord {
   poleNumber: string;
   solarPanelSerial: string | null;
   lightHeadSerial: string | null;
+  installId: string | null;
 }
 
 /** The install already recorded for a pole, if any. */
@@ -91,7 +103,7 @@ export async function findInstallByPole(poleNumber: string): Promise<InstallReco
     filterByFormula: `{${INSTALL_FIELDS.poleNumber}}=${formulaString(poleNumber)}`,
     maxRecords: "1",
   });
-  for (const f of [INSTALL_FIELDS.poleNumber, INSTALL_FIELDS.solarPanelSerial, INSTALL_FIELDS.lightHeadSerial]) {
+  for (const f of [INSTALL_FIELDS.poleNumber, INSTALL_FIELDS.solarPanelSerial, INSTALL_FIELDS.lightHeadSerial, INSTALL_FIELDS.installId]) {
     params.append("fields[]", f);
   }
   const body = await airtable(`?${params.toString()}`, { method: "GET" });
@@ -103,14 +115,15 @@ export async function findInstallByPole(poleNumber: string): Promise<InstallReco
     poleNumber: text(record.fields[INSTALL_FIELDS.poleNumber]) ?? poleNumber,
     solarPanelSerial: text(record.fields[INSTALL_FIELDS.solarPanelSerial]),
     lightHeadSerial: text(record.fields[INSTALL_FIELDS.lightHeadSerial]),
+    installId: text(record.fields[INSTALL_FIELDS.installId]),
   };
 }
 
 /** Records an install; returns the new Airtable record id. */
-export async function createInstall(install: InstallSubmission): Promise<string> {
+export async function createInstall(install: InstallSubmission, installedBy: string): Promise<string> {
   const body = await airtable("", {
     method: "POST",
-    body: JSON.stringify({ records: [{ fields: installFields(install) }] }),
+    body: JSON.stringify({ records: [{ fields: installFields(install, installedBy) }] }),
   });
   const id = (body.records as { id: string }[] | undefined)?.[0]?.id;
   if (!id) throw new AirtableError("Airtable didn't return the new record.", 502);

@@ -20,7 +20,17 @@ describe("Airtable install fields", () => {
       accuracyMeters: null,
       capturedAt: "2026-10-14T00:00:00Z",
       notes: null,
-    });
-    expect(Object.keys(fields)).toEqual(["Pole Number", "Solar Panel Serial", "Lighthead Serial", "Location Coordinates "]);
+    }, "crew@streetleaf.com");
+    expect(Object.keys(fields)).toEqual([
+      "Pole Number",
+      "Solar Panel Serial",
+      "Lighthead Serial",
+      "Location Coordinates ",
+      "Installed By",
+      "Captured At",
+      "Install ID",
+    ]);
+    expect(fields["Installed By"]).toBe("crew@streetleaf.com");
+    expect(fields["Install ID"]).toBe("x");
   });
 });

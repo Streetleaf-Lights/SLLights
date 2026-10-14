@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { testToken } from "@/testing/testToken";
 
-const { allProjects } = vi.hoisted(() => ({ allProjects: vi.fn() }));
+const { allProjects, users } = vi.hoisted(() => ({ allProjects: vi.fn(), users: vi.fn() }));
 vi.mock("@/lib/apim", async () => {
   const actual = await vi.importActual<typeof import("@/lib/apim")>("@/lib/apim");
-  return { ...actual, getAllProjects: allProjects };
+  return { ...actual, getAllProjects: allProjects, getUsers: users };
 });
 
 import { POST } from "@/app/api/mobile/installs/route";
@@ -42,6 +42,7 @@ beforeEach(() => {
   vi.stubEnv("AIRTABLE_TOKEN", "pat-secret");
   vi.stubGlobal("fetch", fetchMock);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
+  users.mockResolvedValue([{ id: "crew1", name: "Casey Crew", email: "casey@streetleaf.com", role: "Streetleaf Crew" }]);
   allProjects.mockResolvedValue([
     { id: "p1", name: "Babcock", customerId: "c1", active: true, stickerNumbers: ["TESTSL1-1001", "TESTSL1-1002"], leadsunProject: null },
     { id: "p2", name: "Old", customerId: "c1", active: false, stickerNumbers: ["OLD-1"], leadsunProject: null },
@@ -53,6 +54,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   fetchMock.mockClear();
   allProjects.mockReset();
+  users.mockReset();
 });
 
 const post = (body: unknown, token: string | null = crew) =>
@@ -82,10 +84,37 @@ describe("POST /api/mobile/installs", () => {
             "Lighthead Serial": "RHEA000025111652",
             "Location Coordinates ": "Longitude: -82.26689041599842 Latitude: 28.196376054573985",
             Notes: "Testing mobile app scanning",
+            "Installed By": "casey@streetleaf.com",
+            "Captured At": "2026-10-14T14:44:33.000Z",
+            "Install ID": "uuid-1",
           },
         },
       ],
     });
+  });
+
+  it("takes Installed By from the signed-in user on the server, never from the request", async () => {
+    await post({ ...install, installedBy: "someone-else@example.com", "Installed By": "spoofed" });
+    const fields = JSON.parse(String(creates()[0][1]?.body)).records[0].fields;
+    expect(fields["Installed By"]).toBe("casey@streetleaf.com");
+  });
+
+  it("records Captured At as when the crew submitted on the phone, not when it arrived", async () => {
+    await post({ ...install, capturedAt: "2026-10-13T08:15:00.000Z" }); // captured yesterday, offline
+    expect(JSON.parse(String(creates()[0][1]?.body)).records[0].fields["Captured At"]).toBe("2026-10-13T08:15:00.000Z");
+  });
+
+  it("falls back to the user id if the user isn't in the list, rather than blocking the install", async () => {
+    users.mockResolvedValue([]);
+    expect((await post(install)).status).toBe(200);
+    expect(JSON.parse(String(creates()[0][1]?.body)).records[0].fields["Installed By"]).toBe("user crew1");
+  });
+
+  it("recognises a resend by its Install ID, even if the serials were since corrected", async () => {
+    existing = [{ id: "recOLD", fields: { "Pole Number": "TESTSL1-1001", "Solar Panel Serial": "TYPO", "Lighthead Serial": "RHEA000025111652", "Install ID": "uuid-1" } }];
+    const res = await post(install);
+    expect(await res.json()).toEqual({ success: true, recordId: "recOLD", alreadyRecorded: true });
+    expect(creates()).toHaveLength(0);
   });
 
   it("leaves Notes out when there are none", async () => {

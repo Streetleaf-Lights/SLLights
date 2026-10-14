@@ -4,7 +4,7 @@ import { canUseFieldTools } from "@sllights/shared/auth-role";
 import { isCrewProject } from "@sllights/shared/crew-access";
 import { validateInstallSubmission } from "@sllights/shared/install-submission";
 import { AirtableError, createInstall, findInstallByPole } from "@/lib/airtableInstalls";
-import { ApimError, getAllProjects } from "@/lib/apim";
+import { ApimError, getAllProjects, getUsers } from "@/lib/apim";
 import { requireSession } from "@/lib/require-session";
 
 const same = (a: string | null, b: string) => (a ?? "").trim().toUpperCase() === b.trim().toUpperCase();
@@ -17,10 +17,12 @@ const same = (a: string | null, b: string) => (a ?? "").trim().toUpperCase() ===
  *  - the install is complete and valid — 400;
  *  - its sticker belongs to that project, which is active — 422 (e.g. the
  *    office changed the stickers after the crew's list was saved offline);
- *  - the pole isn't already recorded: the same pole with the same serials
- *    is this install again (a resend after a lost reply) — 200, nothing
- *    new written; a different install for the pole — 409, so two crews
+ *  - the pole isn't already recorded: the same Install ID, or the same
+ *    pole with the same serials, is this install again (a resend after a
+ *    lost reply) — 200, nothing new written; a different install for the pole — 409, so two crews
  *    can't both record the same pole.
+ * Records Installed By (the signed-in person's email), Captured At (when
+ * the crew submitted it on the phone) and Install ID alongside the install.
  * Airtable trouble or rate limits come back as 5xx/429 so the phone keeps
  * the install and tries again later.
  */
@@ -53,7 +55,10 @@ export async function POST(request: NextRequest) {
 
     const existing = await findInstallByPole(install.poleNumber);
     if (existing) {
-      if (same(existing.solarPanelSerial, install.solarPanelSerial) && same(existing.lightHeadSerial, install.lightHeadSerial)) {
+      // This very install (same Install ID — a resend after a lost reply), or
+      // an identical one for the pole: already recorded, nothing new written.
+      const sameInstall = existing.installId === install.id;
+      if (sameInstall || (same(existing.solarPanelSerial, install.solarPanelSerial) && same(existing.lightHeadSerial, install.lightHeadSerial))) {
         const ok: InstallResponse = { success: true, recordId: existing.id, alreadyRecorded: true };
         return NextResponse.json(ok);
       }
@@ -63,7 +68,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const recordId = await createInstall(install);
+    // Installed By: the signed-in person's email, from the server's own user
+    // list (the session only carries their id) — never taken from the request.
+    const user = (await getUsers(token)).find((u) => u.id === session.id);
+    const recordId = await createInstall(install, user?.email || `user ${session.id}`);
     const ok: InstallResponse = { success: true, recordId, alreadyRecorded: false };
     return NextResponse.json(ok);
   } catch (err) {
