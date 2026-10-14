@@ -135,7 +135,7 @@ describe("navigation inside the tabs", () => {
   it("opens the install form in the Install tab, with the bottom nav", async () => {
     await signIn("Streetleaf Admin", null);
     const router = await renderRouter(routes, { initialUrl: "/scan", wrapper: withSignedInAuth(api()) });
-    expect(await screen.findByLabelText("Pole Number")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /^Project: / })).toBeTruthy(); // the install form's first field
     expect(router.getSegments()).toEqual(["(tabs)", "(scan)", "scan"]);
     await expectTabBar("Customers", "Install", "Account");
   });

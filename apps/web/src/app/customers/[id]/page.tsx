@@ -4,6 +4,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { CustomerOverview } from "@/components/CustomerOverview";
 import { withQueryParam } from "@/lib/url";
+import { isCrewProject } from "@sllights/shared/crew-access";
+import { crewScope, vitalsForProjects } from "@/lib/crew-scope";
 import { getSessionToken, getSessionUser, isCustomerScoped } from "@/lib/session";
 
 export default async function CustomerDetailPage({
@@ -16,7 +18,10 @@ export default async function CustomerDetailPage({
   const { id } = await params;
   const { cust_q, pole_q } = await searchParams;
   const token = await getSessionToken();
-  const [customer, sessionUser] = await Promise.all([getCustomer(id, token), getSessionUser()]);
+  const [foundCustomer, sessionUser] = await Promise.all([getCustomer(id, token), getSessionUser()]);
+  // Streetleaf Crew: only customers with an active sticker project (others look "not found").
+  const crew = sessionUser && token ? await crewScope(sessionUser, token) : null;
+  const customer = foundCustomer && (!crew || crew.customerIds.has(foundCustomer.id)) ? foundCustomer : undefined;
   const customersHref = withQueryParam("/customers", "cust_q", cust_q);
 
   if (!customer) {
@@ -35,10 +40,13 @@ export default async function CustomerDetailPage({
     );
   }
 
-  const [projects, vitals] = await Promise.all([
+  const [allProjects, allVitals] = await Promise.all([
     getProjectsForCustomer(customer.id, token),
     getPoleVitalsForCustomer(customer.id, token),
   ]);
+  // Streetleaf Crew: just their projects, with the summary over those.
+  const projects = crew ? allProjects.filter(isCrewProject) : allProjects;
+  const vitals = crew ? vitalsForProjects(allVitals, new Set(projects.map((p) => p.id))) : allVitals;
 
   return (
     <>

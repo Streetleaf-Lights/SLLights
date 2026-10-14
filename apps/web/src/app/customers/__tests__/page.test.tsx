@@ -12,6 +12,8 @@ vi.mock("@/lib/apim", () => ({
 
 vi.mock("@/lib/session", () => ({
   getSessionToken: getSessionTokenMock,
+  // A Streetleaf Admin: the crew narrowing doesn't apply (see web-crew-access.test.tsx).
+  getSessionUser: vi.fn().mockResolvedValue({ id: "sa", role: "Streetleaf Admin", customerId: null }),
 }));
 
 vi.mock("next/navigation", () => ({

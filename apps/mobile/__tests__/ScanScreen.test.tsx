@@ -1,10 +1,13 @@
 import { Alert } from "react-native";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import NetInfo from "@react-native-community/netinfo";
 import type { InstallSubmission } from "@sllights/shared/install-submission";
 import InstallScreen from "../app/(tabs)/(scan)/scan";
 import { InstallQueueProvider } from "@/installs/InstallQueueProvider";
 import { createInstallQueue, type QueueItem, type SendResult } from "@/installs/queue";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { sessionStore } from "@/auth/sessionStore";
+import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
 
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("expo-camera", () => {
@@ -39,28 +42,62 @@ function setup(send: jest.Mock = jest.fn(async (): Promise<SendResult> => ({ kin
   return { queue, send, saved: () => saved };
 }
 
-async function renderScreen({ online, send }: { online: boolean; send?: jest.Mock }) {
+/** The projects and stickers the server offers (active projects with stickers). */
+const OPTIONS = {
+  generatedAt: "2026-10-12T15:30:00.000Z",
+  projects: [
+    { id: "p1", name: "Spine Road", customerName: "Coastal", stickerNumbers: ["CHA-1157", "CHA-1158"] },
+    { id: "p2", name: "Alpha Street", customerName: "Babcock", stickerNumbers: ["BAB-1"] },
+  ],
+};
+
+beforeEach(async () => {
+  await AsyncStorage.clear();
+  const token = makeToken({ sub: "crew1", role: "Streetleaf Crew", exp: futureExp() });
+  await sessionStore.save({ token, user: { id: "crew1", name: "C", email: "c@x.com", role: "Streetleaf Crew", customerId: null } });
+});
+
+async function renderScreen({
+  online,
+  send,
+  getInstallOptions = jest.fn().mockResolvedValue(OPTIONS),
+}: {
+  online: boolean;
+  send?: jest.Mock;
+  getInstallOptions?: jest.Mock;
+}) {
   const ctx = setup(send);
+  const api = fakeApi({ getInstallOptions });
   await render(
     <InstallQueueProvider queueOverride={ctx.queue}>
       <InstallScreen />
     </InstallQueueProvider>,
+    { wrapper: withSignedInAuth(api) },
   );
   await act(async () => emitConnection(online));
-  return ctx;
+  return { ...ctx, api };
 }
 
-const fillPole = (value: string) => fireEvent.changeText(screen.getByLabelText("Pole Number"), value);
+/** Opens a dropdown and picks an option. */
+const choose = async (field: "Project" | "Sticker / Pole Number", option: string) => {
+  await fireEvent.press(await screen.findByRole("button", { name: new RegExp(`^${field}: `) }));
+  await fireEvent.press(screen.getByRole("button", { name: `Choose ${option}` }));
+};
+/** Picks the pole: its project, then its sticker. */
+const pickPole = async (sticker: string, projectName = sticker.startsWith("BAB") ? "Alpha Street" : "Spine Road") => {
+  await choose("Project", projectName);
+  await choose("Sticker / Pole Number", sticker);
+};
 /** Types a serial via "Won't scan? Type it instead". */
 const typeSerial = async (label: string, value: string) => {
   await fireEvent.press(screen.getByRole("link", { name: `Won't scan? Type the ${label} instead` }));
   await fireEvent.changeText(screen.getByLabelText(label), value);
 };
 /** Everything required: both serials and the pole number (location is captured automatically). */
-const fillRequired = async (pole: string) => {
+const fillRequired = async (sticker: string) => {
+  await pickPole(sticker);
   await typeSerial("Light Head Serial Number", "LH-1");
   await typeSerial("Solar Panel Serial Number", "SP-1");
-  await fillPole(pole);
 };
 /** The scanner frame's place in the camera view, as the phone would lay it out. */
 const FRAME = { x: 50, y: 200, width: 280, height: 110 };
@@ -192,10 +229,15 @@ describe("Install form (Scan tab)", () => {
   it("marks required fields with an asterisk, not the word 'required'", async () => {
     await renderScreen({ online: true });
     expect(screen.getByText("* Required")).toBeTruthy(); // the key at the top
-    for (const label of ["Light Head Serial Number", "Solar Panel Serial Number", "Pole Number", "Location Coordinates"]) {
-      expect(screen.getByText(label, { exact: false }).props.children).toEqual(expect.arrayContaining([label]));
+    for (const label of ["Project", "Sticker / Pole Number", "Light Head Serial Number", "Solar Panel Serial Number", "Location Coordinates"]) {
+      // The label itself: the field name followed by the red asterisk.
+      const labels = screen.getAllByText(label, { exact: false }).filter(
+        (el) => Array.isArray(el.props.children) && el.props.children[0] === label,
+      );
+      expect(labels).toHaveLength(1);
+      expect(within(labels[0]).getByText("*", { includeHiddenElements: true })).toBeTruthy(); // hidden from screen readers, which hear "required"
     }
-    expect(screen.getByLabelText("Pole Number").props.accessibilityHint).toBe("Required");
+    expect(screen.getByRole("button", { name: /^Project: / }).props.accessibilityHint).toBe("Required");
     expect(screen.getByLabelText("Notes").props.accessibilityHint).toBeUndefined();
     expect(screen.queryByText(/\(required\)|\(optional\)/)).toBeNull();
   });
@@ -215,12 +257,13 @@ describe("Install form (Scan tab)", () => {
     await submit();
     expect(screen.getByText("Light Head Serial Number is required.")).toBeTruthy();
     expect(screen.getByText("Solar Panel Serial Number is required.")).toBeTruthy();
-    expect(screen.getByText("Pole Number is required.")).toBeTruthy();
+    expect(screen.getByText("Select a project.")).toBeTruthy();
+    expect(screen.getByText("Select a sticker (pole number).")).toBeTruthy();
     expect(send).not.toHaveBeenCalled();
 
-    await fillRequired("PAS-2"); // no notes
+    await fillRequired("CHA-1157"); // no notes
     await submit();
-    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ poleNumber: "PAS-2", notes: null })));
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ poleNumber: "CHA-1157", notes: null })));
   });
 
   it("online: sends the install straight away and clears the form for the next pole", async () => {
@@ -228,16 +271,17 @@ describe("Install form (Scan tab)", () => {
     await screen.findByText("Latitude 27.950575");
     await typeSerial("Light Head Serial Number", "lh-1");
     await typeSerial("Solar Panel Serial Number", "SP-1");
-    await fillPole(" pas-12 ");
+    await pickPole("CHA-1158");
     await fireEvent.changeText(screen.getByLabelText("Notes"), "New base plate");
     await submit();
 
-    expect(await screen.findByText("Install for PAS-12 sent.")).toBeTruthy();
+    expect(await screen.findByText("Install for CHA-1158 sent.")).toBeTruthy();
     const sent: InstallSubmission = send.mock.calls[0][0];
     expect(sent).toMatchObject({
       lightHeadSerial: "lh-1",
       solarPanelSerial: "SP-1",
-      poleNumber: "PAS-12",
+      poleNumber: "CHA-1158",
+      projectId: "p1",
       latitude: 27.950575,
       longitude: -82.457178,
       accuracyMeters: 6,
@@ -245,19 +289,19 @@ describe("Install form (Scan tab)", () => {
     });
     expect(sent.id).toMatch(/^uuid-/);
     expect(Number.isNaN(new Date(sent.capturedAt).getTime())).toBe(false);
-    expect(screen.getByLabelText("Pole Number").props.value).toBe("");
+    expect(screen.getByRole("button", { name: /^Sticker \/ Pole Number: Choose a sticker/ })).toBeTruthy(); // sticker cleared
     expect(screen.queryByTestId("pending-installs")).toBeNull(); // nothing left waiting
   });
 
   it("offline: saves on the phone, shows it waiting, and sends it when the connection returns", async () => {
     const { send, saved } = await renderScreen({ online: false });
     await screen.findByText("Latitude 27.950575");
-    await fillRequired("PAS-77");
+    await fillRequired("CHA-1157");
     await submit();
 
-    expect(await screen.findByText(/Install for PAS-77 saved on this phone/)).toBeTruthy();
+    expect(await screen.findByText(/Install for CHA-1157 saved on this phone/)).toBeTruthy();
     expect(send).not.toHaveBeenCalled();
-    expect(saved().map((i) => i.submission.poleNumber)).toEqual(["PAS-77"]);
+    expect(saved().map((i) => i.submission.poleNumber)).toEqual(["CHA-1157"]);
     const pending = within(screen.getByTestId("pending-installs"));
     expect(pending.getByText("Waiting to send (1)")).toBeTruthy();
     expect(pending.getByText("Offline")).toBeTruthy();
@@ -272,7 +316,7 @@ describe("Install form (Scan tab)", () => {
     Location.requestForegroundPermissionsAsync.mockResolvedValueOnce({ granted: false });
     const { send } = await renderScreen({ online: true });
     expect(await screen.findByText(/Location access is off. Turn it on to submit/)).toBeTruthy();
-    await fillRequired("PAS-3");
+    await fillRequired("CHA-1157");
     await submit();
     expect(screen.getByText("Location is required. Get the location before submitting.")).toBeTruthy();
     expect(send).not.toHaveBeenCalled();
@@ -282,7 +326,7 @@ describe("Install form (Scan tab)", () => {
     expect(await screen.findByText("Latitude 27.950575")).toBeTruthy();
     expect(screen.queryByText(/Location is required/)).toBeNull();
     await submit();
-    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ poleNumber: "PAS-3", latitude: 27.950575 })));
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ poleNumber: "CHA-1157", latitude: 27.950575 })));
   });
 
 
@@ -290,7 +334,7 @@ describe("Install form (Scan tab)", () => {
     const send = jest.fn(async (): Promise<SendResult> => ({ kind: "rejected", error: "Unknown pole number." }));
     await renderScreen({ online: true, send });
     await screen.findByText("Latitude 27.950575");
-    await fillRequired("PAS-404");
+    await fillRequired("CHA-1157");
     await submit();
 
     const pending = within(await screen.findByTestId("pending-installs"));
@@ -299,7 +343,7 @@ describe("Install form (Scan tab)", () => {
     expect(pending.getByText("Unknown pole number.")).toBeTruthy();
 
     send.mockResolvedValueOnce({ kind: "sent" });
-    await fireEvent.press(pending.getByRole("button", { name: "Retry PAS-404" }));
+    await fireEvent.press(pending.getByRole("button", { name: "Retry CHA-1157" }));
     await waitFor(() => expect(screen.queryByTestId("pending-installs")).toBeNull());
   });
 
@@ -308,10 +352,10 @@ describe("Install form (Scan tab)", () => {
     const send = jest.fn(async (): Promise<SendResult> => ({ kind: "rejected", error: "Bad." }));
     const { saved } = await renderScreen({ online: true, send });
     await screen.findByText("Latitude 27.950575");
-    await fillRequired("PAS-9");
+    await fillRequired("CHA-1157");
     await submit();
-    await fireEvent.press(await screen.findByRole("button", { name: "Delete PAS-9" }));
-    expect(alert).toHaveBeenCalledWith("Delete this install?", expect.stringContaining("PAS-9"), expect.any(Array));
+    await fireEvent.press(await screen.findByRole("button", { name: "Delete CHA-1157" }));
+    expect(alert).toHaveBeenCalledWith("Delete this install?", expect.stringContaining("CHA-1157"), expect.any(Array));
     expect(saved()).toHaveLength(1);
     const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
     await act(async () => buttons.find((b) => b.text === "Delete")?.onPress?.());
@@ -323,9 +367,108 @@ describe("Install form (Scan tab)", () => {
     const send = jest.fn(async (): Promise<SendResult> => ({ kind: "sent" }));
     await renderScreen({ online: false, send });
     await screen.findByText("Latitude 27.950575");
-    await fillRequired("PAS-5");
+    await fillRequired("CHA-1157");
     await submit();
     await fireEvent.press(await screen.findByRole("button", { name: "Send now" }));
     await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  });
+
+  describe("project and sticker dropdowns", () => {
+    const options = async (field: "Project" | "Sticker / Pole Number") => {
+      await fireEvent.press(await screen.findByRole("button", { name: new RegExp(`^${field}: `) }));
+      const labels = screen.getAllByRole("button", { name: /^Choose / }).map((b) => b.props.accessibilityLabel.replace("Choose ", ""));
+      await fireEvent.press(screen.getByRole("button", { name: `Close ${field}` }));
+      return labels;
+    };
+
+    it("lists the projects (with their customer) first, then the chosen project's stickers", async () => {
+      await renderScreen({ online: true });
+      expect(await options("Project")).toEqual(["Spine Road", "Alpha Street"]);
+      // The sticker dropdown waits for a project.
+      const stickerField = screen.getByRole("button", { name: /^Sticker \/ Pole Number: Choose a project first/ });
+      expect(stickerField.props.accessibilityState.disabled).toBe(true);
+      await choose("Project", "Spine Road");
+      expect(screen.getByText("Coastal")).toBeTruthy(); // the customer under the chosen project
+      expect(await options("Sticker / Pole Number")).toEqual(["CHA-1157", "CHA-1158"]);
+    });
+
+    it("sends the chosen project and its sticker as the pole number", async () => {
+      const { send } = await renderScreen({ online: true });
+      await screen.findByText("Latitude 27.950575");
+      await fillRequired("BAB-1");
+      await submit();
+      await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ projectId: "p2", poleNumber: "BAB-1" })));
+    });
+
+    it("drops a submitted sticker from the list, keeping the project for the next pole", async () => {
+      await renderScreen({ online: false }); // even before it's sent
+      await screen.findByText("Latitude 27.950575");
+      await fillRequired("CHA-1157");
+      await submit();
+      await screen.findByText(/Install for CHA-1157 saved on this phone/);
+      expect(screen.getByRole("button", { name: /^Project: Spine Road/ })).toBeTruthy(); // still chosen
+      expect(await options("Sticker / Pole Number")).toEqual(["CHA-1158"]);
+    });
+
+    it("drops a project once all its stickers are submitted", async () => {
+      await renderScreen({ online: true });
+      await screen.findByText("Latitude 27.950575");
+      await fillRequired("BAB-1"); // Alpha Street's only sticker
+      await submit();
+      await screen.findByText("Install for BAB-1 sent.");
+      expect(screen.getByRole("button", { name: /^Project: Choose a project/ })).toBeTruthy(); // cleared
+      expect(await options("Project")).toEqual(["Spine Road"]);
+    });
+
+    it("gives a sticker back when its unsent install is deleted", async () => {
+      const alert = jest.spyOn(Alert, "alert");
+      const send = jest.fn(async (): Promise<SendResult> => ({ kind: "rejected", error: "Bad." }));
+      await renderScreen({ online: true, send });
+      await screen.findByText("Latitude 27.950575");
+      await fillRequired("BAB-1");
+      await submit();
+      await fireEvent.press(await screen.findByRole("button", { name: "Delete BAB-1" }));
+      const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
+      await act(async () => buttons.find((b) => b.text === "Delete")?.onPress?.());
+      await waitFor(async () => expect(await options("Project")).toEqual(["Spine Road", "Alpha Street"]));
+      alert.mockRestore();
+    });
+
+    it("remembers submitted stickers after the app restarts", async () => {
+      const first = await renderScreen({ online: true });
+      await screen.findByText("Latitude 27.950575");
+      await fillRequired("CHA-1157");
+      await submit();
+      await screen.findByText("Install for CHA-1157 sent.");
+      // Close the app: discard everything rendered (the phone's storage stays).
+      await cleanup();
+      void first;
+
+      await renderScreen({ online: true }); // a fresh start, same phone storage
+      await screen.findByText("Latitude 27.950575"); // let the opening background tasks settle
+      await choose("Project", "Spine Road");
+      expect(await options("Sticker / Pole Number")).toEqual(["CHA-1158"]);
+    });
+
+    it("works out of signal from the list saved on the phone", async () => {
+      await AsyncStorage.setItem("streetleaf.installOptions.v1", JSON.stringify(OPTIONS));
+      await renderScreen({ online: false, getInstallOptions: jest.fn().mockRejectedValue(new Error("No connection.")) });
+      await screen.findByText("Latitude 27.950575"); // let the opening background tasks settle
+      expect(await screen.findByText(/^Saved list /)).toBeTruthy();
+      expect(await options("Project")).toEqual(["Spine Road", "Alpha Street"]);
+    });
+
+    it("explains when there's no list yet and no connection", async () => {
+      await renderScreen({ online: false, getInstallOptions: jest.fn().mockRejectedValue(new Error("No connection.")) });
+      await screen.findByText("Latitude 27.950575"); // let the opening background tasks settle
+      expect(await screen.findByText("Projects couldn't be loaded. Connect to the internet once to download them.")).toBeTruthy();
+    });
+
+    it("saves a fresh list for next time", async () => {
+      await renderScreen({ online: true });
+      await screen.findByText("Latitude 27.950575");
+      await screen.findByText(/^Updated /);
+      expect(JSON.parse((await AsyncStorage.getItem("streetleaf.installOptions.v1")) ?? "null")).toEqual(OPTIONS);
+    });
   });
 });

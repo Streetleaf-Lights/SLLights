@@ -1,10 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
+import { stickerKey } from "@sllights/shared/install-options";
 import type { InstallSubmission } from "@sllights/shared/install-submission";
 import { createInstallQueue, type InstallQueue, type QueueItem } from "./queue";
 import { sendInstall } from "./sendInstall";
 import { asyncStorageQueue } from "./storage";
+
+const SUBMITTED_KEY = "streetleaf.submittedStickers.v1";
+/** A sticker submitted from this phone, and the install it went with. */
+interface SubmittedSticker {
+  key: string;
+  installId: string;
+}
 
 /** How often to try again while installs are waiting and the phone is online. */
 export const RETRY_INTERVAL_MS = 60_000;
@@ -20,6 +29,12 @@ interface InstallQueueValue {
   sendNow: (opts?: { force?: boolean }) => Promise<void>;
   retry: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  /**
+   * Stickers submitted from this phone (waiting or sent) — the Install form
+   * leaves them out so a pole can't be submitted twice. Deleting a queued
+   * install frees its sticker again.
+   */
+  submittedStickers: ReadonlySet<string>;
 }
 
 const Ctx = createContext<InstallQueueValue | null>(null);
@@ -32,6 +47,7 @@ const Ctx = createContext<InstallQueueValue | null>(null);
  */
 export function InstallQueueProvider({ children, queueOverride }: { children: ReactNode; queueOverride?: InstallQueue }) {
   const [items, setItems] = useState<QueueItem[]>([]);
+  const [submitted, setSubmitted] = useState<SubmittedSticker[]>([]);
   const [online, setOnline] = useState(false);
   const [sending, setSending] = useState(false);
   const [queue] = useState(
@@ -60,10 +76,19 @@ export function InstallQueueProvider({ children, queueOverride }: { children: Re
   useEffect(() => {
     let cancelled = false;
     void queue.list().then((saved) => !cancelled && setItems([...saved]));
+    void AsyncStorage.getItem(SUBMITTED_KEY)
+      .then((raw) => (raw ? (JSON.parse(raw) as SubmittedSticker[]) : []))
+      .catch(() => [] as SubmittedSticker[])
+      .then((saved) => !cancelled && setSubmitted(saved));
     return () => {
       cancelled = true;
     };
   }, [queue]);
+
+  const saveSubmitted = useCallback(async (next: SubmittedSticker[]) => {
+    setSubmitted(next);
+    await AsyncStorage.setItem(SUBMITTED_KEY, JSON.stringify(next)).catch(() => undefined);
+  }, []);
 
   // Connection changes — including the current state, reported as soon as
   // we subscribe — so being online at start, or coming back online, sends
@@ -100,11 +125,13 @@ export function InstallQueueProvider({ children, queueOverride }: { children: Re
     async (submission: InstallSubmission) => {
       await queue.enqueue(submission);
       setItems([...(await queue.list())]);
+      // Its sticker is used now, even before it's sent.
+      await saveSubmitted([...submitted, { key: stickerKey(submission.projectId, submission.poleNumber), installId: submission.id }]);
       await sendNow();
       const stillHere = (await queue.list()).some((i) => i.submission.id === submission.id);
       return stillHere ? ("saved" as const) : ("sent" as const);
     },
-    [queue, sendNow],
+    [queue, sendNow, submitted, saveSubmitted],
   );
   const retry = useCallback(
     async (id: string) => {
@@ -118,13 +145,16 @@ export function InstallQueueProvider({ children, queueOverride }: { children: Re
     async (id: string) => {
       await queue.remove(id);
       setItems([...(await queue.list())]);
+      // A deleted (never-sent) install frees its sticker for the dropdown again.
+      await saveSubmitted(submitted.filter((entry) => entry.installId !== id));
     },
-    [queue],
+    [queue, submitted, saveSubmitted],
   );
+  const submittedStickers = useMemo(() => new Set(submitted.map((entry) => entry.key)), [submitted]);
 
   const value = useMemo(
-    () => ({ items, online, sending, submit, sendNow, retry, remove }),
-    [items, online, sending, submit, sendNow, retry, remove],
+    () => ({ items, online, sending, submit, sendNow, retry, remove, submittedStickers }),
+    [items, online, sending, submit, sendNow, retry, remove, submittedStickers],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

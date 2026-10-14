@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { getCustomers } from "@/lib/apim";
-import { getSessionToken } from "@/lib/session";
+import { crewScope, customerForCrew } from "@/lib/crew-scope";
+import { getSessionToken, getSessionUser } from "@/lib/session";
 import { PageHeader } from "@/components/PageHeader";
 import { CustomersTable } from "@/components/CustomersTable";
 import { DebugLog } from "@/components/DebugLog";
@@ -13,8 +14,15 @@ import { DebugLog } from "@/components/DebugLog";
 export const dynamic = "force-dynamic";
 
 export default async function CustomersPage() {
-  const token = await getSessionToken();
-  const customers = await getCustomers({ active: true }, token);
+  const [token, sessionUser] = await Promise.all([getSessionToken(), getSessionUser()]);
+  const [allCustomers, crew] = await Promise.all([
+    getCustomers({ active: true }, token),
+    sessionUser && token ? crewScope(sessionUser, token) : Promise.resolve(null),
+  ]);
+  // Streetleaf Crew: customers with an active sticker project, listing only those projects.
+  const customers = crew
+    ? allCustomers.filter((c) => crew.customerIds.has(c.id)).map((c) => customerForCrew(c, crew.projectIds))
+    : allCustomers;
 
   return (
     <>

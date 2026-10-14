@@ -21,6 +21,7 @@ import {
 import { buildPoleStatusCards, formatCoordinate } from "@sllights/shared/pole-detail";
 import type { StatusTone } from "@sllights/shared/status";
 import { findLeadsunProduct } from "@/lib/leadsun";
+import { crewScope } from "@/lib/crew-scope";
 import { getSessionToken, getSessionUser, isCustomerScoped } from "@/lib/session";
 
 /** Shared status tones -> this app's colour classes. */
@@ -86,7 +87,9 @@ export default async function PoleDetailPage({
     getPoleVitalsForCustomer(id, token),
     getSessionUser(),
   ]);
-  const project = projects.find((p) => p.id === projectId);
+  // Streetleaf Crew: only active projects with sticker numbers (others look "not found").
+  const crew = sessionUser && token ? await crewScope(sessionUser, token) : null;
+  const project = projects.find((p) => p.id === projectId && (!crew || crew.projectIds.has(p.id)));
   const projectVitals = vitals?.projects.find((p) => p.id === projectId);
   const pole = projectVitals?.poles.find((p) => p.id === poleId);
 

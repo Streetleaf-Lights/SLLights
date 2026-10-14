@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { getCustomer, getPoles, getProjectsForCustomer } from "@/lib/apim";
+import { crewScope } from "@/lib/crew-scope";
 import { getSessionToken, getSessionUser, isCustomerScoped } from "@/lib/session";
 import { isSilentPole } from "@/lib/text";
 import { PageHeader } from "@/components/PageHeader";
@@ -15,6 +16,8 @@ export default async function PolesPage({
   const { customerId, projectId, faults } = await searchParams;
   const [sessionUser, token] = await Promise.all([getSessionUser(), getSessionToken()]);
   const customerScoped = isCustomerScoped(sessionUser?.role, sessionUser?.customerId);
+  // Streetleaf Crew: only poles in active projects with sticker numbers.
+  const crew = sessionUser && token ? await crewScope(sessionUser, token) : null;
 
   // Only set when arriving via a "Total faults" link — the per-project one
   // (customer detail row, or the project detail page itself) includes
@@ -27,7 +30,8 @@ export default async function PolesPage({
   const isFaultsRequest =
     Boolean(customerId) &&
     faults === "1" &&
-    (!customerScoped || customerId === sessionUser?.customerId);
+    (!customerScoped || customerId === sessionUser?.customerId) &&
+    (!crew || (crew.customerIds.has(customerId ?? "") && (!projectId || crew.projectIds.has(projectId))));
 
   if (isFaultsRequest && customerId) {
     const [rawPoles, customer, projects] = await Promise.all([
@@ -40,7 +44,11 @@ export default async function PolesPage({
     // as the dash shown elsewhere for Unknown/stale poles) — excluded
     // entirely here rather than shown with possibly-stale fault data.
     const faultedPoles = rawPoles.filter(
-      (pole) => pole.isPoleFault === true && !isSilentPole(pole.lastUpdate),
+      (pole) =>
+        pole.isPoleFault === true &&
+        !isSilentPole(pole.lastUpdate) &&
+        // Crew: this customer's poles in their projects only, whatever APIM returned.
+        (!crew || (pole.customerId === customerId && crew.projectIds.has(pole.projectId))),
     );
     const projectNames = Object.fromEntries(projects.map((p) => [p.id, p.name]));
 
@@ -59,12 +67,13 @@ export default async function PolesPage({
     );
   }
 
-  const poles = await getPoles(
+  const allPoles = await getPoles(
     customerScoped && sessionUser?.customerId
       ? { customerId: sessionUser.customerId }
       : undefined,
     token,
   );
+  const poles = crew ? allPoles.filter((pole) => crew.projectIds.has(pole.projectId)) : allPoles;
 
   return (
     <>

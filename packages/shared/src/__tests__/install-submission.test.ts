@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { validateInstallDraft, type InstallDraft } from "../install-submission";
 
 const draft = (extra: Partial<InstallDraft> = {}): InstallDraft => ({
+  projectId: "p1",
   lightHeadSerial: "  LH-001 ",
   solarPanelSerial: " SP-002 ",
   poleNumber: " pas-12 ",
@@ -15,6 +16,7 @@ describe("validateInstallDraft (everything required except Notes)", () => {
     expect(validateInstallDraft(draft())).toEqual({
       ok: true,
       value: {
+        projectId: "p1",
         lightHeadSerial: "LH-001",
         solarPanelSerial: "SP-002",
         poleNumber: "PAS-12",
@@ -31,12 +33,13 @@ describe("validateInstallDraft (everything required except Notes)", () => {
   });
 
   it("requires both serials, the pole number and a location", () => {
-    expect(validateInstallDraft(draft({ lightHeadSerial: " ", solarPanelSerial: "", poleNumber: "  ", location: null }))).toEqual({
+    expect(validateInstallDraft(draft({ projectId: "", lightHeadSerial: " ", solarPanelSerial: "", poleNumber: "  ", location: null }))).toEqual({
       ok: false,
       errors: {
+        projectId: "Select a project.",
         lightHeadSerial: "Light Head Serial Number is required.",
         solarPanelSerial: "Solar Panel Serial Number is required.",
-        poleNumber: "Pole Number is required.",
+        poleNumber: "Select a sticker (pole number).",
         location: "Location is required. Get the location before submitting.",
       },
     });
@@ -45,7 +48,8 @@ describe("validateInstallDraft (everything required except Notes)", () => {
   it.each([
     ["missing light head serial", { lightHeadSerial: "" }, "lightHeadSerial"],
     ["missing solar panel serial", { solarPanelSerial: "  " }, "solarPanelSerial"],
-    ["missing pole number", { poleNumber: "" }, "poleNumber"],
+    ["missing pole number (sticker)", { poleNumber: "" }, "poleNumber"],
+    ["missing project", { projectId: "" }, "projectId"],
     ["no location", { location: null }, "location"],
     ["unusable location", { location: { latitude: 200, longitude: 1, accuracyMeters: null } }, "location"],
   ])("rejects %s", (_l, extra, field) => {

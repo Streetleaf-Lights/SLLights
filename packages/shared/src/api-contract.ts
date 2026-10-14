@@ -28,6 +28,7 @@ export const MOBILE_API = {
   customers: "/api/mobile/customers",
   poles: "/api/mobile/poles",
   users: "/api/mobile/users",
+  installOptions: "/api/mobile/install-options",
   poleInstall: "/api/mobile/poleinstall",
   createPoleIssue: "/api/createpoleissue",
 } as const;
@@ -246,6 +247,18 @@ export interface ChangeRoleResponse {
 export interface TransferOwnershipResponse {
   success: true;
   customerName: string | null;
+}
+
+/**
+ * GET /api/mobile/install-options — what the Install form's dropdowns offer:
+ * active projects with sticker numbers (each sticker is a pole number to
+ * install), with the customer's name. Field roles only (Streetleaf Admin and
+ * Crew). The phone saves the latest copy for use out of signal.
+ */
+export interface InstallOptionsResponse {
+  /** When the server produced this list (ISO-8601). */
+  generatedAt: string;
+  projects: { id: string; name: string; customerName: string | null; stickerNumbers: string[] }[];
 }
 
 /** GET /api/mobile/customers — Streetleaf staff only (403 for customer-scoped users). Active customers, by name. */

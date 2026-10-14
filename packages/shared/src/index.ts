@@ -14,5 +14,6 @@ export * from "./users";
 export * from "./password";
 export * from "./install-submission";
 export * from "./crew-access";
+export * from "./install-options";
 export * from "./api-contract";
 export { colors, type ColorToken } from "./theme";

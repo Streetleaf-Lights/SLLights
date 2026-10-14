@@ -26,6 +26,7 @@ afterEach(() => {
 const waitingItem = (n: number): QueueItem => ({
   submission: {
     id: `id-${n}`,
+    projectId: "p1",
     lightHeadSerial: `LH-${n}`,
     solarPanelSerial: `SP-${n}`,
     poleNumber: `PAS-${n}`,

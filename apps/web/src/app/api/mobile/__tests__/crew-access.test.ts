@@ -33,19 +33,20 @@ const crew = testToken({ sub: "crew1", role: "Streetleaf Crew", exp });
 const staff = testToken({ sub: "sa1", role: "Streetleaf Admin", exp });
 
 // c1: p1 has stickers, p2 doesn't. c2: no sticker projects. c3: p4 has stickers.
-const project = (id: string, customerId: string, stickers: string[]) => ({
+const project = (id: string, customerId: string, stickers: string[], active = true) => ({
   id,
   name: `Project ${id}`,
   customerId,
   stickerNumbers: stickers,
   leadsunProject: null,
-  active: true,
+  active,
 });
 const allProjects = [
   project("p1", "c1", ["CHA-1157", "CHA-1158"]),
   project("p2", "c1", []),
   project("p3", "c2", []),
   project("p4", "c3", ["BAB-1"]),
+  project("p5", "c1", ["OLD-1"], false), // inactive: hidden from crew even with stickers
 ];
 const vitalsFor = (id: string, lights: number, faults: number, pct: number) => ({
   id,
@@ -112,8 +113,14 @@ describe("Streetleaf Crew see only projects with sticker numbers", () => {
     expect(body.summary).toEqual({ totalLights: 10, connectedLights: 10, totalFaults: 1, percentWorking: 90 });
 
     const staffBody = await (await CUSTOMER(req(staff, "/api/mobile/customers/c1"), params({ customerId: "c1" }))).json();
-    expect(staffBody.projects.map((p: { id: string }) => p.id)).toEqual(["p1", "p2"]);
+    expect(staffBody.projects.map((p: { id: string }) => p.id)).toEqual(["p1", "p2", "p5"]); // staff: every project, as before
     expect(staffBody.summary.totalLights).toBe(30); // whole customer, as before
+  });
+
+  it("hides inactive projects even when they have stickers", async () => {
+    const body = await (await CUSTOMER(req(crew, "/api/mobile/customers/c1"), params({ customerId: "c1" }))).json();
+    expect(body.projects.map((p: { id: string }) => p.id)).not.toContain("p5");
+    expect((await PROJECT(req(crew, "/x"), params({ customerId: "c1", projectId: "p5" }))).status).toBe(404);
   });
 
   it("404s a customer without sticker projects", async () => {

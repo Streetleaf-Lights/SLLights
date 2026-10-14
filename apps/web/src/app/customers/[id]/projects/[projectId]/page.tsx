@@ -8,6 +8,7 @@ import { LocationMap } from "@/components/LocationMap";
 import { RemoteControlLink } from "@/components/RemoteControlLink";
 import { InactiveBadge } from "@/components/InactiveBadge";
 import { withQueryParam, withSearchContext } from "@/lib/url";
+import { crewScope } from "@/lib/crew-scope";
 import { getSessionToken, getSessionUser, isCustomerScoped } from "@/lib/session";
 import { hasLeadsunProducts } from "@/lib/leadsun";
 
@@ -27,7 +28,9 @@ export default async function ProjectDetailPage({
     getPoleVitalsForCustomer(id, token),
     getSessionUser(),
   ]);
-  const project = projects.find((p) => p.id === projectId);
+  // Streetleaf Crew: only active projects with sticker numbers (others look "not found").
+  const crew = sessionUser && token ? await crewScope(sessionUser, token) : null;
+  const project = projects.find((p) => p.id === projectId && (!crew || crew.projectIds.has(p.id)));
   const projectVitals = vitals?.projects.find((p) => p.id === projectId);
 
   const customersHref = withQueryParam("/customers", "cust_q", cust_q);

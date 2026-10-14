@@ -1,19 +1,21 @@
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Crypto from "expo-crypto";
+import { remainingInstallOptions, stickerKey } from "@sllights/shared/install-options";
 import {
   INSTALL_NOTES_MAX_LENGTH,
-  POLE_NUMBER_MAX_LENGTH,
   validateInstallDraft,
   type InstallFieldErrors,
 } from "@sllights/shared/install-submission";
 import { useInstallQueue } from "@/installs/InstallQueueProvider";
 import { PendingInstalls } from "@/installs/PendingInstalls";
 import { SerialField } from "@/installs/SerialField";
+import { useInstallOptions } from "@/installs/useInstallOptions";
 import { POOR_ACCURACY_METERS, useLocationFix } from "@/location/useLocationFix";
 import { BarcodeScannerModal } from "@/scan/BarcodeScannerModal";
 import { Banner } from "@/ui/Banner";
 import { Button } from "@/ui/Button";
+import { SelectField } from "@/ui/SelectField";
 import { FieldLabel, TextField } from "@/ui/TextField";
 import { colors, radius, space } from "@/ui/theme";
 
@@ -24,18 +26,25 @@ const SCAN_TITLES: Record<ScanTarget, string> = {
 };
 
 /**
- * Record a field install: solar panel and light head serials (scan or
- * type, in the sticker's order), pole number, and the current location (captured automatically,
- * no internet needed) — all required — plus optional notes. Submit saves it on the
+ * Record a field install: the project and its sticker (the pole number) —
+ * from dropdowns that work offline and leave out stickers already
+ * submitted — then the solar panel and light head serials (scan or type, in
+ * the sticker's order) and the current location (captured automatically,
+ * no internet needed): all required, plus optional notes. Submit saves it on the
  * phone first and sends it when there's a connection — so it works out of
  * signal and nothing is lost.
  */
 export default function InstallScreen() {
-  const { submit } = useInstallQueue();
+  const { submit, submittedStickers } = useInstallQueue();
+  const options = useInstallOptions();
+  // Projects and stickers not yet submitted from this phone (a project with none left drops out).
+  const remaining = remainingInstallOptions(options.projects, submittedStickers);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [sticker, setSticker] = useState<string | null>(null);
+  const project = remaining.find((p) => p.id === projectId) ?? null;
   const { state: location, capture } = useLocationFix({ auto: true });
   const [lightHeadSerial, setLightHeadSerial] = useState("");
   const [solarPanelSerial, setSolarPanelSerial] = useState("");
-  const [poleNumber, setPoleNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<InstallFieldErrors>({});
   const [scanning, setScanning] = useState<ScanTarget | null>(null);
@@ -49,7 +58,8 @@ export default function InstallScreen() {
     const checked = validateInstallDraft({
       lightHeadSerial,
       solarPanelSerial,
-      poleNumber,
+      projectId: project?.id ?? "",
+      poleNumber: project && sticker && project.stickerNumbers.includes(sticker) ? sticker : "",
       location: fix ? { latitude: fix.latitude, longitude: fix.longitude, accuracyMeters: fix.accuracyMeters } : null,
       notes,
     });
@@ -69,10 +79,16 @@ export default function InstallScreen() {
               message: `Install for ${checked.value.poleNumber} saved on this phone. It will be sent automatically when you're back online.`,
             },
       );
-      // Ready for the next pole; location stays (re-capture if you've moved).
+      // Ready for the next pole: this sticker is now used, so it leaves the
+      // list. The project stays chosen while it has stickers left (the crew
+      // is usually doing the next pole of the same job); it's cleared once
+      // its last sticker is used — it drops out of the list then too.
+      // Location stays (re-capture if you've moved).
+      const left = remainingInstallOptions(options.projects, new Set([...submittedStickers, stickerKey(checked.value.projectId, checked.value.poleNumber)]));
+      if (!left.some((p) => p.id === checked.value.projectId)) setProjectId(null);
+      setSticker(null);
       setLightHeadSerial("");
       setSolarPanelSerial("");
-      setPoleNumber("");
       setNotes("");
     } finally {
       setSaving(false);
@@ -88,6 +104,43 @@ export default function InstallScreen() {
           <Text style={styles.legend}>
             <Text style={styles.asterisk}>*</Text> Required
           </Text>
+          <SelectField
+            label="Project"
+            required
+            placeholder={remaining.length ? "Choose a project" : "No projects to install"}
+            options={remaining.map((p) => ({ value: p.id, label: p.name, detail: p.customerName }))}
+            value={project ? project.id : null}
+            onChange={(id) => {
+              setProjectId(id);
+              setSticker(null);
+            }}
+            emptyText="No projects have stickers left to install."
+            error={errors.projectId}
+          />
+          <View style={styles.listStatus}>
+            <Text style={styles.muted}>
+              {options.source === "none"
+                ? options.loading
+                  ? "Loading projects…"
+                  : "Projects couldn't be loaded. Connect to the internet once to download them."
+                : `${options.source === "saved" ? "Saved list" : "Updated"} ${new Date(options.updatedAt ?? "").toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`}
+            </Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Refresh project list" onPress={() => void options.refresh()} hitSlop={8}>
+              <Text style={styles.link}>{options.loading ? "Refreshing…" : "Refresh"}</Text>
+            </Pressable>
+          </View>
+          <SelectField
+            label="Sticker / Pole Number"
+            required
+            disabled={!project}
+            placeholder={project ? "Choose a sticker" : "Choose a project first"}
+            options={(project?.stickerNumbers ?? []).map((n) => ({ value: n, label: n }))}
+            value={sticker}
+            onChange={setSticker}
+            emptyText="Every sticker in this project has been submitted."
+            error={errors.poleNumber}
+          />
+
           {/* Solar panel first: the order the barcodes appear on the sticker. */}
           <SerialField
             label="Solar Panel Serial Number"
@@ -105,19 +158,6 @@ export default function InstallScreen() {
             onScan={() => setScanning("lightHeadSerial")}
             error={errors.lightHeadSerial}
           />
-          <View style={styles.gap}>
-            <TextField
-              label="Pole Number"
-              required
-              value={poleNumber}
-              onChangeText={setPoleNumber}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              maxLength={POLE_NUMBER_MAX_LENGTH}
-              placeholder="e.g. PAS-4938"
-            />
-            {errors.poleNumber ? <Text style={styles.error}>{errors.poleNumber}</Text> : null}
-          </View>
 
           <View style={styles.location} accessibilityLabel="Location coordinates">
             <FieldLabel label="Location Coordinates" required />
@@ -216,5 +256,6 @@ const styles = StyleSheet.create({
   legend: { fontSize: 13, color: colors.inkMuted },
   asterisk: { color: colors.statusFlagged, fontWeight: "700" },
   refresh: { alignSelf: "flex-start", marginTop: 2 },
+  listStatus: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm, marginTop: -space.sm },
   link: { fontSize: 14, fontWeight: "600", color: colors.accentStrong },
 });

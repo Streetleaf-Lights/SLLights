@@ -5,6 +5,7 @@ import { sendInstall, sendResultFor } from "@/installs/sendInstall";
 
 const submission = (n: number): InstallSubmission => ({
   id: `id-${n}`,
+  projectId: "p1",
   lightHeadSerial: `LH-${n}`,
   solarPanelSerial: `SP-${n}`,
   poleNumber: `PAS-${n}`,

@@ -6,8 +6,11 @@
 export interface InstallSubmission {
   /** Created on the phone; lets the server ignore a resend of the same install. */
   id: string;
+  /** The project the pole belongs to (chosen in the form's first dropdown). */
+  projectId: string;
   lightHeadSerial: string;
   solarPanelSerial: string;
+  /** The pole's sticker number (chosen in the form's second dropdown). */
   poleNumber: string;
   latitude: number;
   longitude: number;
@@ -24,6 +27,7 @@ export const INSTALL_NOTES_MAX_LENGTH = 500;
 
 /** What the form holds before an id and capture time are added. */
 export interface InstallDraft {
+  projectId: string;
   lightHeadSerial: string;
   solarPanelSerial: string;
   poleNumber: string;
@@ -32,15 +36,15 @@ export interface InstallDraft {
 }
 
 export type InstallFieldErrors = Partial<
-  Record<"lightHeadSerial" | "solarPanelSerial" | "poleNumber" | "location" | "notes", string>
+  Record<"projectId" | "lightHeadSerial" | "solarPanelSerial" | "poleNumber" | "location" | "notes", string>
 >;
 
 const blankToNull = (value: string) => (value.trim() ? value.trim() : null);
 
 /**
  * Checks a draft and shapes it for sending. Everything is required except
- * Notes: both serials (trimmed), the pole number (trimmed, upper-cased)
- * and a usable location; notes are optional (blank → null). Returns
+ * Notes: the project, both serials (trimmed), the pole number — the chosen
+ * sticker — (trimmed, upper-cased) and a usable location; notes are optional (blank → null). Returns
  * per-field errors otherwise.
  */
 export function validateInstallDraft(
@@ -50,12 +54,14 @@ export function validateInstallDraft(
   const lightHeadSerial = draft.lightHeadSerial.trim();
   const solarPanelSerial = draft.solarPanelSerial.trim();
   const poleNumber = draft.poleNumber.trim().toUpperCase();
+  const projectId = draft.projectId.trim();
 
+  if (!projectId) errors.projectId = "Select a project.";
   if (!lightHeadSerial) errors.lightHeadSerial = "Light Head Serial Number is required.";
   else if (lightHeadSerial.length > SERIAL_MAX_LENGTH) errors.lightHeadSerial = `Serial numbers are at most ${SERIAL_MAX_LENGTH} characters.`;
   if (!solarPanelSerial) errors.solarPanelSerial = "Solar Panel Serial Number is required.";
   else if (solarPanelSerial.length > SERIAL_MAX_LENGTH) errors.solarPanelSerial = `Serial numbers are at most ${SERIAL_MAX_LENGTH} characters.`;
-  if (!poleNumber) errors.poleNumber = "Pole Number is required.";
+  if (!poleNumber) errors.poleNumber = "Select a sticker (pole number).";
   else if (poleNumber.length > POLE_NUMBER_MAX_LENGTH) errors.poleNumber = `Pole Number must be at most ${POLE_NUMBER_MAX_LENGTH} characters.`;
 
   const location = draft.location;
@@ -73,6 +79,7 @@ export function validateInstallDraft(
   return {
     ok: true,
     value: {
+      projectId,
       lightHeadSerial,
       solarPanelSerial,
       poleNumber,

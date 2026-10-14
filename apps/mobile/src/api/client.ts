@@ -19,6 +19,7 @@ import {
   type TransferOwnershipResponse,
   type InviteUserRequest,
   type InviteUserResponse,
+  type InstallOptionsResponse,
   type UsersResponse,
   type PoleVitalsResponse,
   type ProjectDetailResponse,
@@ -281,6 +282,11 @@ export function createApiClient({
 
     deleteUser(userId: string) {
       return request<{ success: true }>(mobileUserPath(userId), { method: "DELETE", auth: true });
+    },
+
+    /** The Install form's projects and stickers (field roles only). */
+    getInstallOptions() {
+      return request<InstallOptionsResponse>(MOBILE_API.installOptions, { method: "GET", auth: true });
     },
 
     lookupPole(poleNumber: string) {

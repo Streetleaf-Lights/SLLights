@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ApimError, getCustomer, getPoleVitalsForCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { canViewCustomer, toCustomerOverview } from "@/lib/mobile-views";
-import { hasStickerNumbers, isCrew } from "@sllights/shared/crew-access";
+import { isCrew, isCrewProject } from "@sllights/shared/crew-access";
 import { crewMaySee } from "@/lib/crew-scope";
 import { requireSession } from "@/lib/require-session";
 
@@ -31,9 +31,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       getPoleVitalsForCustomer(customerId, token),
     ]);
     if (!customer) return notFound;
-    // Streetleaf Crew: just the projects with sticker numbers, and totals over those.
+    // Streetleaf Crew: just the active projects with sticker numbers, and totals over those.
     const crew = isCrew(session.role);
-    const projects = crew ? allProjects.filter(hasStickerNumbers) : allProjects;
+    const projects = crew ? allProjects.filter(isCrewProject) : allProjects;
     return NextResponse.json(toCustomerOverview(customer, projects, vitals, { summaryOverListedProjects: crew }), {
       headers: { "Cache-Control": "no-store" },
     });
