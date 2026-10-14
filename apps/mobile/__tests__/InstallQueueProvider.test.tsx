@@ -3,6 +3,9 @@ import { act, render } from "@testing-library/react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { InstallQueueProvider, RETRY_INTERVAL_MS } from "@/installs/InstallQueueProvider";
 import { createInstallQueue, type QueueItem, type SendResult } from "@/installs/queue";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { sessionStore } from "@/auth/sessionStore";
+import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
 
 let emitConnection: (online: boolean) => void = () => undefined;
 let emitAppState: (state: string) => void = () => undefined;
@@ -42,13 +45,20 @@ const waitingItem = (n: number): QueueItem => ({
   lastAttemptAt: null,
 });
 
+async function signIn() {
+  const token = makeToken({ sub: "crew1", role: "Streetleaf Crew", exp: futureExp() });
+  await sessionStore.save({ token, user: { id: "crew1", name: "C", email: "c@x.com", role: "Streetleaf Crew", customerId: null } });
+}
+
 async function mount(send: jest.Mock, saved: QueueItem[]) {
+  await signIn();
   let store = saved;
   const queue = createInstallQueue({ storage: { load: async () => store, save: async (i) => void (store = i) }, send });
   await render(
     <InstallQueueProvider queueOverride={queue}>
       <Text>app</Text>
     </InstallQueueProvider>,
+    { wrapper: withSignedInAuth(fakeApi()) },
   );
   return { stored: () => store };
 }
@@ -96,5 +106,20 @@ describe("InstallQueueProvider", () => {
     await act(async () => emitConnection(true));
     await act(async () => emitAppState("active"));
     expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it("for real: sends installs saved on the phone to the server, and removes them once recorded", async () => {
+    await signIn();
+    await AsyncStorage.setItem("streetleaf.installQueue.v1", JSON.stringify([waitingItem(1)]));
+    const api = fakeApi();
+    await render(
+      <InstallQueueProvider>
+        <Text>app</Text>
+      </InstallQueueProvider>,
+      { wrapper: withSignedInAuth(api) },
+    );
+    await act(async () => emitConnection(true));
+    expect(api.submitInstall).toHaveBeenCalledWith(waitingItem(1).submission);
+    expect(JSON.parse((await AsyncStorage.getItem("streetleaf.installQueue.v1")) ?? "null")).toEqual([]);
   });
 });

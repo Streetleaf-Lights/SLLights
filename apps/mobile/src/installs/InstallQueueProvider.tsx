@@ -5,7 +5,8 @@ import NetInfo from "@react-native-community/netinfo";
 import { stickerKey } from "@sllights/shared/install-options";
 import type { InstallSubmission } from "@sllights/shared/install-submission";
 import { createInstallQueue, type InstallQueue, type QueueItem } from "./queue";
-import { sendInstall } from "./sendInstall";
+import { useAuth } from "@/auth/AuthProvider";
+import { createSendInstall } from "./sendInstall";
 import { asyncStorageQueue } from "./storage";
 
 const SUBMITTED_KEY = "streetleaf.submittedStickers.v1";
@@ -50,8 +51,11 @@ export function InstallQueueProvider({ children, queueOverride }: { children: Re
   const [submitted, setSubmitted] = useState<SubmittedSticker[]>([]);
   const [online, setOnline] = useState(false);
   const [sending, setSending] = useState(false);
+  const { api } = useAuth();
   const [queue] = useState(
-    () => queueOverride ?? createInstallQueue({ storage: asyncStorageQueue, send: sendInstall, onChange: (next) => setItems(next) }),
+    () =>
+      queueOverride ??
+      createInstallQueue({ storage: asyncStorageQueue, send: createSendInstall(api), onChange: (next) => setItems(next) }),
   );
 
   /** Sends what's waiting, regardless of the connection guess (the queue keeps anything that fails). */

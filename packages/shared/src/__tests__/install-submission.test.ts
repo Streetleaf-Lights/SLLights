@@ -64,3 +64,39 @@ describe("validateInstallDraft (everything required except Notes)", () => {
     expect(r).toMatchObject({ ok: false, errors: { lightHeadSerial: expect.any(String), notes: expect.any(String) } });
   });
 });
+
+import { validateInstallSubmission } from "../install-submission";
+
+describe("validateInstallSubmission (server side)", () => {
+  const good = {
+    id: "uuid-1",
+    projectId: "p1",
+    lightHeadSerial: " RHEA000025111652 ",
+    solarPanelSerial: "AEXSAM3325111132",
+    poleNumber: "testsl1-1001",
+    latitude: 28.196376054573985,
+    longitude: -82.26689041599842,
+    accuracyMeters: 5,
+    capturedAt: "2026-10-14T14:44:33.000Z",
+    notes: "Testing mobile app scanning",
+  };
+
+  it("accepts a complete install, cleaned like the form", () => {
+    expect(validateInstallSubmission(good)).toEqual({
+      ok: true,
+      value: { ...good, lightHeadSerial: "RHEA000025111652", poleNumber: "TESTSL1-1001" },
+    });
+  });
+
+  it.each([
+    ["no body", null],
+    ["no id", { ...good, id: " " }],
+    ["bad capture time", { ...good, capturedAt: "soon" }],
+    ["no location", { ...good, latitude: undefined }],
+    ["no light head serial", { ...good, lightHeadSerial: "" }],
+    ["no project", { ...good, projectId: "" }],
+    ["notes not text", { ...good, notes: 7 }],
+  ])("rejects %s", (_l, body) => {
+    expect(validateInstallSubmission(body)).toMatchObject({ ok: false });
+  });
+});

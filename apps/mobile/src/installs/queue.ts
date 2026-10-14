@@ -11,7 +11,7 @@ export interface QueueItem {
 
 /**
  * The outcome of one send:
- *  - sent        — accepted (or already had it): remove from the phone;
+ *  - sent        — recorded (or this same install already was): remove from the phone;
  *  - retry-later — no connection, timeout, server trouble, signed out:
  *                  keep it, stop for now, try again later;
  *  - rejected    — the server refused this install itself (e.g. invalid):

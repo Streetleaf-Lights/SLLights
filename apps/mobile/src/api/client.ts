@@ -20,6 +20,7 @@ import {
   type InviteUserRequest,
   type InviteUserResponse,
   type InstallOptionsResponse,
+  type InstallResponse,
   type UsersResponse,
   type PoleVitalsResponse,
   type ProjectDetailResponse,
@@ -31,6 +32,7 @@ import {
   type PoleInstallRequest,
   type PoleLookupResponse,
 } from "@sllights/shared/api-contract";
+import type { InstallSubmission } from "@sllights/shared/install-submission";
 import type { ProjectLightCommand } from "@sllights/shared/remote-control";
 
 /** A failed call, carrying the server's own message (routes always send `{ error }`). */
@@ -287,6 +289,11 @@ export function createApiClient({
     /** The Install form's projects and stickers (field roles only). */
     getInstallOptions() {
       return request<InstallOptionsResponse>(MOBILE_API.installOptions, { method: "GET", auth: true });
+    },
+
+    /** Records a field install (sent from the offline queue). */
+    submitInstall(install: InstallSubmission) {
+      return request<InstallResponse>(MOBILE_API.installs, { method: "POST", body: install, auth: true });
     },
 
     lookupPole(poleNumber: string) {

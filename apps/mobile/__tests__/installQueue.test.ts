@@ -1,7 +1,8 @@
 import type { InstallSubmission } from "@sllights/shared/install-submission";
 import { ApiError } from "@/api/client";
 import { createInstallQueue, type QueueItem, type SendResult } from "@/installs/queue";
-import { sendInstall, sendResultFor } from "@/installs/sendInstall";
+import { createSendInstall, sendResultFor } from "@/installs/sendInstall";
+import { fakeApi } from "../test-utils/helpers";
 
 const submission = (n: number): InstallSubmission => ({
   id: `id-${n}`,
@@ -154,22 +155,36 @@ describe("install queue", () => {
   });
 });
 
-describe("sending (stubbed for now)", () => {
-  it("the stub accepts every install", async () => {
-    expect(await sendInstall(submission(1))).toEqual({ kind: "sent" });
+describe("sending to the server", () => {
+  it("sends the install and treats a success reply as sent", async () => {
+    const api = fakeApi();
+    const send = createSendInstall(api);
+    expect(await send(submission(1))).toEqual({ kind: "sent" });
+    expect(api.submitInstall).toHaveBeenCalledWith(submission(1));
+  });
+
+  it("keeps a refused install, with the server's reason", async () => {
+    const api = fakeApi({
+      submitInstall: jest.fn().mockRejectedValue(new ApiError("PAS-1 already has an install recorded with different serial numbers.", 409)),
+    });
+    expect(await createSendInstall(api)(submission(1))).toEqual({
+      kind: "rejected",
+      error: "PAS-1 already has an install recorded with different serial numbers.",
+    });
   });
 
   it.each([
     ["no connection", new ApiError("No connection.", null), "retry-later"],
     ["timeout", new ApiError("Too slow.", null, true), "retry-later"],
     ["signed out", new ApiError("Not authenticated.", 401), "retry-later"],
-    ["rate limited", new ApiError("Slow down.", 429), "retry-later"],
-    ["server error", new ApiError("Oops.", 503), "retry-later"],
-    ["already received", new ApiError("Duplicate.", 409), "sent"],
-    ["invalid install", new ApiError("Unknown pole number.", 400), "rejected"],
+    ["Airtable busy", new ApiError("Slow down.", 429), "retry-later"],
+    ["Airtable unreachable", new ApiError("Couldn't record.", 503), "retry-later"],
+    ["another install for the pole", new ApiError("Different serials.", 409), "rejected"],
+    ["sticker no longer in the project", new ApiError("Not one of this project's stickers.", 422), "rejected"],
+    ["invalid install", new ApiError("Missing serial.", 400), "rejected"],
     ["not allowed", new ApiError("Forbidden.", 403), "rejected"],
     ["anything unexpected", new Error("boom"), "retry-later"],
-  ])("will treat %s as %s once the real endpoint exists", (_l, err, kind) => {
+  ])("treats %s as %s", (_l, err, kind) => {
     expect(sendResultFor(err).kind).toBe(kind);
   });
 });

@@ -90,3 +90,33 @@ export function validateInstallDraft(
     },
   };
 }
+
+/**
+ * Server-side check of a submitted install (untrusted): the same rules as
+ * the form — everything required except notes — plus the id and capture
+ * time the phone adds. Returns the cleaned install, or what's wrong.
+ */
+export function validateInstallSubmission(body: unknown): { ok: true; value: InstallSubmission } | { ok: false; error: string } {
+  if (!body || typeof body !== "object") return { ok: false, error: "Malformed request body." };
+  const b = body as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  if (!str(b.id).trim()) return { ok: false, error: "An install id is required." };
+  const capturedAt = str(b.capturedAt);
+  if (!capturedAt || Number.isNaN(Date.parse(capturedAt))) return { ok: false, error: "capturedAt must be a date-time." };
+  if (b.notes !== undefined && b.notes !== null && typeof b.notes !== "string") return { ok: false, error: "notes must be text." };
+  const lat = b.latitude;
+  const long = b.longitude;
+  const checked = validateInstallDraft({
+    projectId: str(b.projectId),
+    lightHeadSerial: str(b.lightHeadSerial),
+    solarPanelSerial: str(b.solarPanelSerial),
+    poleNumber: str(b.poleNumber),
+    location:
+      typeof lat === "number" && typeof long === "number"
+        ? { latitude: lat, longitude: long, accuracyMeters: typeof b.accuracyMeters === "number" ? b.accuracyMeters : null }
+        : null,
+    notes: str(b.notes),
+  });
+  if (!checked.ok) return { ok: false, error: Object.values(checked.errors)[0] ?? "Invalid install." };
+  return { ok: true, value: { ...checked.value, id: str(b.id).trim(), capturedAt } };
+}

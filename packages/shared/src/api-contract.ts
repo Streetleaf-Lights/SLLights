@@ -29,6 +29,7 @@ export const MOBILE_API = {
   poles: "/api/mobile/poles",
   users: "/api/mobile/users",
   installOptions: "/api/mobile/install-options",
+  installs: "/api/mobile/installs",
   poleInstall: "/api/mobile/poleinstall",
   createPoleIssue: "/api/createpoleissue",
 } as const;
@@ -259,6 +260,20 @@ export interface InstallOptionsResponse {
   /** When the server produced this list (ISO-8601). */
   generatedAt: string;
   projects: { id: string; name: string; customerName: string | null; stickerNumbers: string[] }[];
+}
+
+/**
+ * POST /api/mobile/installs (an InstallSubmission) — records a field install
+ * in Airtable. 200 when recorded, or when this exact install (same pole and
+ * serials) was already recorded — a resend after a lost reply. 409 when the
+ * pole already has a *different* install recorded; 422 when the sticker
+ * isn't part of the (active) project. Field roles only.
+ */
+export interface InstallResponse {
+  success: true;
+  recordId: string;
+  /** True when the same install was already recorded (nothing new written). */
+  alreadyRecorded: boolean;
 }
 
 /** GET /api/mobile/customers — Streetleaf staff only (403 for customer-scoped users). Active customers, by name. */
