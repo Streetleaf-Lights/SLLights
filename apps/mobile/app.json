@@ -3,17 +3,17 @@
     "name": "Streetleaf Lights",
     "slug": "sllights",
     "scheme": "sllights",
-    "version": "0.1.0",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "version": "1.0.0",
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.streetleaf.lights"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.streetleaf.lights",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.streetleaf.lights",
@@ -60,6 +60,13 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fdfcb432-fff1-4991-b6e0-9731ba9bf365"
+      }
+    },
+    "owner": "streetleaf"
   }
 }
