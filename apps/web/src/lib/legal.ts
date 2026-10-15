@@ -7,11 +7,11 @@
  */
 export const LEGAL = {
   /** The legal entity responsible for the data, e.g. "Streetleaf, Inc.". */
-  companyLegalName: "TODO",
+  companyLegalName: "Streetleaf",
   /** Where privacy questions and deletion requests go, e.g. "privacy@streetleaf.com". */
-  contactEmail: "TODO",
+  contactEmail: "privacy@streetleaf.com",
   /** Postal address for privacy correspondence (one line). */
-  postalAddress: "TODO",
+  postalAddress: "2502 N Rocky Point Dr, Tampa, FL 33607",
   /** Shown as "Last updated" on both pages (YYYY-MM-DD); change when the text changes. */
   lastUpdated: "2026-10-15",
 } as const;
