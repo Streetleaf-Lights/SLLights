@@ -1,3 +1,4 @@
+import { Linking } from "react-native";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import ForgotPasswordScreen from "../app/forgot-password";
 import RegisterScreen from "../app/register";
@@ -45,6 +46,14 @@ describe("Sign in", () => {
     await render(<SignInScreen />, { wrapper: withAuth(fakeApi()) });
     await fireEvent.press(screen.getByRole("link", { name: "Forgot your password?" }));
     expect(mockPush).toHaveBeenCalledWith("/forgot-password");
+  });
+
+  it("links to the privacy policy before signing in", async () => {
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    await render(<SignInScreen />, { wrapper: withAuth(fakeApi()) });
+    await fireEvent.press(screen.getByRole("link", { name: "Privacy policy" }));
+    expect(open).toHaveBeenCalledWith("https://sllights.test/privacy");
+    open.mockRestore();
   });
 });
 

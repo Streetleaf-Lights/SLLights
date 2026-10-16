@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth, useSignedInUser } from "@/auth/AuthProvider";
 import { TestingTools } from "@/installs/TestingTools";
+import { accountDeletionUrl, openLegalPage, privacyPolicyUrl } from "@/legal/legalLinks";
 import { ListRow } from "@/ui/ListRow";
 import { Button } from "@/ui/Button";
 import { colors, radius, space, type } from "@/ui/theme";
@@ -42,6 +43,18 @@ export default function AccountScreen() {
       <ListRow accessibilityLabel="Users" onPress={() => router.push("/users")}>
         <Text style={styles.link}>Users</Text>
         <Text style={type.small}>People with access to the dashboard</Text>
+      </ListRow>
+      {/* Apple asks for the privacy policy, and a way to start account deletion, inside the app. */}
+      <ListRow accessibilityLabel="Privacy policy" onPress={() => void openLegalPage(privacyPolicyUrl(), "Privacy policy")}>
+        <Text style={styles.link}>Privacy policy</Text>
+        <Text style={type.small}>How Streetleaf handles your information</Text>
+      </ListRow>
+      <ListRow
+        accessibilityLabel="Delete your account"
+        onPress={() => void openLegalPage(accountDeletionUrl(), "Delete your account")}
+      >
+        <Text style={styles.link}>Delete your account</Text>
+        <Text style={type.small}>How to request deletion of your account</Text>
       </ListRow>
       <TestingTools />
       <Button

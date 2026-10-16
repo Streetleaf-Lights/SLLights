@@ -14,6 +14,7 @@ export const LEGAL = {
   postalAddress: "2502 N Rocky Point Dr, Tampa, FL 33607",
   /** Shown as "Last updated" on both pages (YYYY-MM-DD); change when the text changes. */
   lastUpdated: "2026-10-15",
+  supportEmail: "streetleafdev@streetleaf.com",
 } as const;
 
 /** Values still to be filled in (empty when ready to publish). */

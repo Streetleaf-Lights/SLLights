@@ -3,6 +3,7 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/auth/AuthProvider";
+import { openLegalPage, privacyPolicyUrl } from "@/legal/legalLinks";
 import { Banner } from "@/ui/Banner";
 import { Button } from "@/ui/Button";
 import { TextField } from "@/ui/TextField";
@@ -79,6 +80,16 @@ export default function SignInScreen() {
           >
             <Text style={styles.forgot}>Forgot your password?</Text>
           </Pressable>
+          {/* Reachable before signing in, too. */}
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Privacy policy"
+            onPress={() => void openLegalPage(privacyPolicyUrl(), "Privacy policy")}
+            hitSlop={8}
+            style={styles.footnote}
+          >
+            <Text style={styles.legal}>Privacy policy</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -93,4 +104,5 @@ const styles = StyleSheet.create({
   intro: { gap: space.xs, marginBottom: space.sm },
   footnote: { alignSelf: "center", marginTop: space.sm },
   forgot: { fontSize: 15, fontWeight: "600", color: colors.accentStrong },
+  legal: { fontSize: 13, color: colors.inkMuted, textDecorationLine: "underline" },
 });

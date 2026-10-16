@@ -19,6 +19,8 @@ export function LegalPage({ title, children }: { title: string; children: ReactN
           <span className="mx-2">·</span>
           <Link href="/account-deletion">Account deletion</Link>
           <span className="mx-2">·</span>
+          <Link href="/support">Support</Link>
+          <span className="mx-2">·</span>
           <Link href="/signin">Sign in</Link>
         </footer>
       </article>

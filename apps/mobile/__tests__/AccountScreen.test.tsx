@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react-native";
+import { Alert, Linking } from "react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import AccountScreen from "../app/(tabs)/(account)/account";
 import { sessionStore } from "@/auth/sessionStore";
 import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
@@ -45,5 +46,36 @@ describe("AccountScreen", () => {
     await render(<AccountScreen />, { wrapper: withSignedInAuth(api) });
 
     expect(await screen.findByText("Couldn't load")).toBeTruthy();
+  });
+
+  describe("privacy and account deletion (asked for by Apple)", () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    async function renderAccount() {
+      await signedInAs({}, "Streetleaf Crew");
+      await render(<AccountScreen />, { wrapper: withSignedInAuth(fakeApi()) });
+    }
+
+    it("opens the web app's privacy policy", async () => {
+      const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+      await renderAccount();
+      await fireEvent.press(await screen.findByRole("button", { name: "Privacy policy" }));
+      expect(open).toHaveBeenCalledWith("https://sllights.test/privacy");
+    });
+
+    it("opens the account deletion page", async () => {
+      const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+      await renderAccount();
+      await fireEvent.press(await screen.findByRole("button", { name: "Delete your account" }));
+      expect(open).toHaveBeenCalledWith("https://sllights.test/account-deletion");
+    });
+
+    it("shows the address if the page can't be opened", async () => {
+      jest.spyOn(Linking, "openURL").mockRejectedValue(new Error("No browser"));
+      const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+      await renderAccount();
+      await fireEvent.press(await screen.findByRole("button", { name: "Privacy policy" }));
+      await waitFor(() => expect(alert).toHaveBeenCalledWith("Privacy policy", expect.stringContaining("https://sllights.test/privacy")));
+    });
   });
 });
