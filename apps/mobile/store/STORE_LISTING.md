@@ -19,20 +19,19 @@ app actually does. Items marked **TODO** need a decision or a URL from Streetlea
 
 ### Description (Apple & Google, up to 4,000 characters)
 
-> Streetleaf Lights is the companion app to the Streetleaf dashboard, for Streetleaf
-> customers.
+> Streetleaf Lights is the companion app to the Streetleaf customer dashboard.
 >
-> **For field crews**
+> **For customers**
+> - See your projects and every light's status: connection, battery, panel and light output.
+> - Review 48-hour vitals history, open issues and each pole's location on a map.
+> - Report an issue on a pole straight from the field.
+>
+> **For Streetleaf field crews**
 > - Record a pole installation in seconds: pick the project and pole sticker, scan the
 >   solar panel and light head barcodes, and the location is captured automatically.
 > - Works without signal. Installs are saved on the phone and sent automatically when
 >   you're back online.
 > - Each project's remaining poles are listed, so the same pole isn't recorded twice.
->
-> **For customers and Streetleaf staff**
-> - See your projects and every light's status: connection, battery, panel and light output.
-> - Review 48-hour vitals history, open issues and each pole's location on a map.
-> - Report an issue on a pole straight from the field.
 >
 > An account is required. Accounts are created by invitation from Streetleaf or your
 > organisation's administrator.
