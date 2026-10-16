@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { decodeSessionToken, homeRouteForRole, isCustomerScoped } from "@/lib/auth-role";
 
 // Routes reachable without a session.
-const PUBLIC_PATHS = ["/signin", "/register", "/forgot-password", "/reset-password", "/privacy", "/account-deletion"];
+const PUBLIC_PATHS = ["/signin", "/register", "/forgot-password", "/reset-password", "/privacy", "/account-deletion", "/support"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));

@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 
-const NO_SIDEBAR_ROUTES = ["/signin", "/register", "/forgot-password", "/reset-password", "/privacy", "/account-deletion"];
+const NO_SIDEBAR_ROUTES = ["/signin", "/register", "/forgot-password", "/reset-password", "/privacy", "/account-deletion", "/support"];
 
 export function AppShell({
   children,
