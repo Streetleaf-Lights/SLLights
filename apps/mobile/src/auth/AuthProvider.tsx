@@ -7,7 +7,8 @@ import { sessionStore, type StoredSession } from "./sessionStore";
 
 type AuthState =
   | { status: "loading" }
-  | { status: "signedOut" }
+  /** notice: shown on the sign-in screen (e.g. after deleting the account). */
+  | { status: "signedOut"; notice?: string }
   | { status: "signedIn"; user: AuthUser; claims: SessionUser };
 
 interface AuthContextValue {
@@ -17,6 +18,12 @@ interface AuthContextValue {
   /** Completes an emailed invite and signs the person in. */
   register: (inviteToken: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Deletes the signed-in person's own account, then signs out on this phone
+   * with a confirmation for the sign-in screen. Throws (staying signed in) if
+   * the server refuses.
+   */
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -34,10 +41,10 @@ export function AuthProvider({
 
   const api = useMemo(() => apiOverride ?? createApiClient({ baseUrl: getApiBaseUrl() }), [apiOverride]);
 
-  const clearLocal = useCallback(async () => {
+  const clearLocal = useCallback(async (notice?: string) => {
     api.setToken(null);
     if (expiryTimer.current) clearTimeout(expiryTimer.current);
-    setState({ status: "signedOut" });
+    setState(notice ? { status: "signedOut", notice } : { status: "signedOut" });
     await sessionStore.clear().catch(() => undefined);
   }, [api]);
 
@@ -106,7 +113,16 @@ export function AuthProvider({
     await clearLocal();
   }, [api, clearLocal]);
 
-  const value = useMemo(() => ({ state, api, signIn, register, signOut }), [state, api, signIn, register, signOut]);
+  const deleteAccount = useCallback(async () => {
+    await api.deleteMyAccount();
+    // The account is gone, so its session is too (no sign-out call needed).
+    await clearLocal("Your account has been deleted.");
+  }, [api, clearLocal]);
+
+  const value = useMemo(
+    () => ({ state, api, signIn, register, signOut, deleteAccount }),
+    [state, api, signIn, register, signOut, deleteAccount],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

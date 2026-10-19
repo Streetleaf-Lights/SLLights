@@ -205,12 +205,17 @@ export function UsersTable({
 
     setDeleting(true);
     setDeleteError(null);
+    const deletingSelf = pendingDelete.id === currentUserId;
     try {
-      const res = await fetch("/api/deleteuser", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: pendingDelete.id }),
-      });
+      // Your own account: /api/deleteaccount (it takes no id — always the
+      // signed-in person) also signs you out. Anyone else: /api/deleteuser.
+      const res = deletingSelf
+        ? await fetch("/api/deleteaccount", { method: "POST" })
+        : await fetch("/api/deleteuser", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: pendingDelete.id }),
+          });
       const body = await res.json().catch(() => null);
 
       if (res.status === 401) {
@@ -226,6 +231,13 @@ export function UsersTable({
       if (!res.ok) {
         setDeleteError(body?.error ?? "Delete failed. Please try again.");
         setDeleting(false);
+        return;
+      }
+
+      if (deletingSelf) {
+        // Signed out by the server; show the sign-in page with a confirmation.
+        router.push("/signin?deleted=1");
+        router.refresh();
         return;
       }
 
@@ -251,14 +263,20 @@ export function UsersTable({
    * accept flow, not a role toggle — offered to the Owner viewing their
    * own row (transferring their own ownership) or a Streetleaf Admin
    * viewing someone else's Owner row, never to anyone else (e.g. a plain
-   * Customer Admin). Delete never applies to your own row regardless of
-   * role (self-deletion isn't supported anywhere in this table) — beyond
+   * Customer Admin). On your own row, any role (Owners included) gets
+   * "Delete my account", which deletes your own account and signs you out
+   * (Apple requires a way to delete your account). Beyond
    * that, a Streetleaf Admin can delete the sole Owner directly, but
    * everyone else must go through the Transfer Ownership flow above,
    * which removes the previous owner automatically once the new one
    * accepts. For anyone else's row that isn't a Customer Owner, both
    * Change Role and Delete apply normally.
    */
+  /** Your own row's "Delete my account" (any role, Customer Owners included). */
+  function deleteMyAccount(user: User): UserAction {
+    return { key: "deleteSelf", label: "Delete my account", onClick: () => setPendingDelete(user), destructive: true };
+  }
+
   function getApplicableActions(user: User): UserAction[] {
     const actions: UserAction[] = [];
     const isSelf = user.id === currentUserId;
@@ -282,7 +300,9 @@ export function UsersTable({
             setTransferTarget({ id: user.customerId as string, name: user.customerName ?? "" }),
         });
       }
-      if (!isSelf && viewerIsStreetleafAdmin) {
+      if (isSelf) {
+        actions.push(deleteMyAccount(user));
+      } else if (viewerIsStreetleafAdmin) {
         actions.push({
           key: "delete",
           label: "Delete",
@@ -293,7 +313,8 @@ export function UsersTable({
       return actions;
     }
 
-    if (isSelf) return actions;
+    // Your own row: no Change Role, but you can delete your own account.
+    if (isSelf) return [...actions, deleteMyAccount(user)];
 
     actions.push({
       key: "changeRole",
@@ -472,13 +493,20 @@ export function UsersTable({
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="delete-user-title" className="text-[16px] font-semibold text-[var(--ink)]">
-              Delete user
+              {pendingDelete.id === currentUserId ? "Delete your account?" : "Delete user"}
             </h2>
-            <p className="mt-2 text-[13px] text-[var(--ink-muted)]">
-              Are you sure you want to delete{" "}
-              <span className="font-medium text-[var(--ink)]">{pendingDelete.name}</span>? This
-              can&rsquo;t be undone.
-            </p>
+            {pendingDelete.id === currentUserId ? (
+              <p className="mt-2 text-[13px] text-[var(--ink-muted)]">
+                Your account and sign-in will be deleted, you&rsquo;ll be signed out, and you won&rsquo;t be able
+                to use the dashboard or the Streetleaf Lights app. This can&rsquo;t be undone.
+              </p>
+            ) : (
+              <p className="mt-2 text-[13px] text-[var(--ink-muted)]">
+                Are you sure you want to delete{" "}
+                <span className="font-medium text-[var(--ink)]">{pendingDelete.name}</span>? This
+                can&rsquo;t be undone.
+              </p>
+            )}
 
             {deleteError && (
               <p
@@ -503,7 +531,7 @@ export function UsersTable({
                 disabled={deleting}
                 className="rounded-md bg-[var(--status-flagged)] px-3.5 py-2 text-[13px] font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {deleting ? "Deleting…" : "Delete"}
+                {deleting ? "Deleting…" : pendingDelete.id === currentUserId ? "Delete my account" : "Delete"}
               </button>
             </div>
           </div>

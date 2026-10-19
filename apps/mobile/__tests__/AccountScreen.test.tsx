@@ -63,12 +63,6 @@ describe("AccountScreen", () => {
       expect(open).toHaveBeenCalledWith("https://sllights.test/privacy");
     });
 
-    it("opens the account deletion page", async () => {
-      const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
-      await renderAccount();
-      await fireEvent.press(await screen.findByRole("button", { name: "Delete your account" }));
-      expect(open).toHaveBeenCalledWith("https://sllights.test/account-deletion");
-    });
 
     it("shows the address if the page can't be opened", async () => {
       jest.spyOn(Linking, "openURL").mockRejectedValue(new Error("No browser"));

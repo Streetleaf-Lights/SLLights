@@ -291,4 +291,17 @@ describe("SignInForm", () => {
       "/forgot-password",
     );
   });
+
+  it("confirms the account was deleted when arriving from 'Delete my account'", () => {
+    searchParamsGetMock.mockImplementation((key: string) => (key === "deleted" ? "1" : null));
+    render(<SignInForm />);
+    expect(screen.getByRole("status")).toHaveTextContent("Your account has been deleted.");
+    searchParamsGetMock.mockReset();
+  });
+
+  it("shows no such message normally", () => {
+    searchParamsGetMock.mockReturnValue(null);
+    render(<SignInForm />);
+    expect(screen.queryByText("Your account has been deleted.")).not.toBeInTheDocument();
+  });
 });

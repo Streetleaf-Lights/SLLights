@@ -28,6 +28,8 @@ export const MOBILE_API = {
   customers: "/api/mobile/customers",
   poles: "/api/mobile/poles",
   users: "/api/mobile/users",
+  /** DELETE: the signed-in person deletes their own account (any role). */
+  account: "/api/mobile/account",
   installOptions: "/api/mobile/install-options",
   installs: "/api/mobile/installs",
   poleInstall: "/api/mobile/poleinstall",

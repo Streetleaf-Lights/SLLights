@@ -282,6 +282,11 @@ export function createApiClient({
       return request<InviteUserResponse>(`${MOBILE_API.users}/invite`, { method: "POST", body: invite, auth: true });
     },
 
+    /** Deletes the signed-in person's own account (any role). */
+    deleteMyAccount() {
+      return request<{ success: true }>(MOBILE_API.account, { method: "DELETE", auth: true });
+    },
+
     deleteUser(userId: string) {
       return request<{ success: true }>(mobileUserPath(userId), { method: "DELETE", auth: true });
     },

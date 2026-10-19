@@ -36,6 +36,8 @@ export function SignInForm() {
   // sign in under, via a ?customerId= query param on this page. Omitted
   // from the request entirely for a normal sign-in (no param present).
   const debugCustomerId = searchParams.get("customerId") ?? undefined;
+  // Arriving here after "Delete my account".
+  const accountDeleted = searchParams.get("deleted") === "1";
 
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
@@ -103,6 +105,14 @@ export function SignInForm() {
       <h1 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
         Sign in
       </h1>
+      {accountDeleted && (
+        <p
+          role="status"
+          className="mt-4 rounded-md border border-[var(--border)] bg-[var(--surface-sunken)] px-3 py-2 text-[13px] text-[var(--ink)]"
+        >
+          Your account has been deleted.
+        </p>
+      )}
       <p className="mt-1 text-[13px] text-[var(--ink-muted)]">
         Streetleaf - Customer Dashboard
       </p>

@@ -3,7 +3,8 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth, useSignedInUser } from "@/auth/AuthProvider";
 import { TestingTools } from "@/installs/TestingTools";
-import { accountDeletionUrl, openLegalPage, privacyPolicyUrl } from "@/legal/legalLinks";
+import { useDeleteMyAccount } from "@/account/useDeleteMyAccount";
+import { openLegalPage, privacyPolicyUrl } from "@/legal/legalLinks";
 import { ListRow } from "@/ui/ListRow";
 import { Button } from "@/ui/Button";
 import { colors, radius, space, type } from "@/ui/theme";
@@ -12,6 +13,7 @@ import { colors, radius, space, type } from "@/ui/theme";
 type CustomerLabel = string | null;
 
 export default function AccountScreen() {
+  const { confirmDeleteMyAccount, deleting } = useDeleteMyAccount();
   const { api, signOut } = useAuth();
   const router = useRouter();
   const { user, claims } = useSignedInUser();
@@ -49,12 +51,9 @@ export default function AccountScreen() {
         <Text style={styles.link}>Privacy policy</Text>
         <Text style={type.small}>How Streetleaf handles your information</Text>
       </ListRow>
-      <ListRow
-        accessibilityLabel="Delete your account"
-        onPress={() => void openLegalPage(accountDeletionUrl(), "Delete your account")}
-      >
-        <Text style={styles.link}>Delete your account</Text>
-        <Text style={type.small}>How to request deletion of your account</Text>
+      <ListRow accessibilityLabel="Delete your account" onPress={confirmDeleteMyAccount}>
+        <Text style={[styles.link, styles.destructive]}>{deleting ? "Deleting your account…" : "Delete your account"}</Text>
+        <Text style={type.small}>Permanently delete your account and sign-in</Text>
       </ListRow>
       <TestingTools />
       <Button
@@ -91,4 +90,5 @@ const styles = StyleSheet.create({
   },
   row: { gap: 2 },
   link: { fontSize: 17, fontWeight: "600", color: colors.ink },
+  destructive: { color: colors.statusFlagged },
 });

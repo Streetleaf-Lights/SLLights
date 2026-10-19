@@ -65,11 +65,13 @@ describe("public legal pages (the URLs given to the app stores)", () => {
     expect(screen.getByRole("link", { name: "how to delete your account" })).toHaveAttribute("href", "/account-deletion");
   });
 
-  it("the deletion page explains how to ask, what's deleted and what may be kept", () => {
+  it("the deletion page explains how to delete (in the app first), what's deleted and what may be kept", () => {
     render(<AccountDeletionPage />);
     const ask = screen.getAllByRole("link", { name: LEGAL.contactEmail })[0];
     expect(ask.getAttribute("href")).toBe(`mailto:${LEGAL.contactEmail}?subject=Account%20deletion%20request`);
-    for (const heading of ["How to request deletion", "What is deleted", "What may be kept"]) {
+    expect(document.body.textContent).toContain("tap Delete your account");
+    expect(document.body.textContent).toContain("deleted straight away");
+    for (const heading of ["How to delete your account", "What is deleted", "What may be kept"]) {
       expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
     }
     const footer = screen.getByRole("contentinfo");

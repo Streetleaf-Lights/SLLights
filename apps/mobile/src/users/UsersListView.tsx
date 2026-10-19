@@ -14,6 +14,7 @@ import { SearchField } from "@/ui/SearchField";
 import { colors, radius, space, type } from "@/ui/theme";
 import { InviteUserForm } from "./InviteUserForm";
 import { TransferOwnershipForm } from "./TransferOwnershipForm";
+import { useDeleteMyAccount } from "@/account/useDeleteMyAccount";
 
 type RowResult = { tone: "ok" | "error"; message: string };
 
@@ -27,6 +28,8 @@ type RowResult = { tone: "ok" | "error"; message: string };
 export function UsersListView() {
   const { api } = useAuth();
   const { claims } = useSignedInUser();
+  // Your own row offers "Delete my account" (any role, Customer Owners included).
+  const { confirmDeleteMyAccount, deleting: deletingMyAccount } = useDeleteMyAccount();
   const load = useCallback(() => api.listUsers(), [api]);
   const { state, retry, refresh } = useApiQuery(load);
   const [query, setQuery] = useState("");
@@ -149,8 +152,9 @@ export function UsersListView() {
       renderItem={({ item: user }) => {
         const result = results[user.id];
         const isBusy = (key: string) => busy === `${user.id}:${key}`;
+        const isMe = user.id === claims.id;
         const anyAction =
-          user.actions.reinvite || user.actions.changeRole || user.actions.delete || user.actions.transferOwnership;
+          isMe || user.actions.reinvite || user.actions.changeRole || user.actions.delete || user.actions.transferOwnership;
         return (
           <View style={styles.card} accessibilityLabel={`${user.name}, ${user.roleLabel}, ${user.status}`}>
             <View style={styles.top}>
@@ -213,6 +217,14 @@ export function UsersListView() {
                     destructive
                     disabled={busy !== null}
                     onPress={() => confirmDelete(user)}
+                  />
+                ) : null}
+                {isMe ? (
+                  <Action
+                    label={deletingMyAccount ? "Deleting…" : "Delete my account"}
+                    destructive
+                    disabled={busy !== null || deletingMyAccount}
+                    onPress={confirmDeleteMyAccount}
                   />
                 ) : null}
               </View>

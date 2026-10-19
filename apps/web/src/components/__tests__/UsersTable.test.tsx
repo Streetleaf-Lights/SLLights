@@ -209,13 +209,11 @@ describe("UsersTable", () => {
     expect(screen.getByRole("button", { name: "Actions for Priya Nair" })).toBeInTheDocument();
   });
 
-  it("shows nothing (not a dash) for a row with zero applicable actions (its own row, not pending)", () => {
+  it("offers only 'Delete my account' on your own row (not pending)", async () => {
+    const user = userEvent.setup();
     render(<UsersTable users={users} currentUserId="user1" />);
-
-    const ownRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
-    expect(within(ownRow).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
-    const cells = ownRow.querySelectorAll("td");
-    expect(cells[cells.length - 1]).toHaveTextContent("");
+    const row = await openActionsMenu(user, "Jane Doe");
+    expect(within(row).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Delete my account"]);
   });
 
   it("opens a menu listing Delete for a row when its trigger is clicked", async () => {
@@ -939,5 +937,69 @@ describe("UsersTable", () => {
 
     expect(screen.getByText("User 11")).toBeInTheDocument();
     expect(screen.queryByText("User 1")).not.toBeInTheDocument();
+  });
+
+  describe("deleting your own account", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      pushMock.mockClear();
+      refreshMock.mockClear();
+    });
+
+    it("is offered to a Customer Owner on their own row too, beside Transfer Ownership", async () => {
+      const user = userEvent.setup();
+      const me = { ...users[0], role: "Customer Owner", customerId: "cust-1", customerName: "Coastal" };
+      render(<UsersTable users={[me, ...users.slice(1)]} currentUserId={me.id} />);
+      const row = await openActionsMenu(user, me.name);
+      expect(within(row).getAllByRole("menuitem").map((m) => m.textContent)).toEqual([
+        "Transfer Ownership",
+        "Delete my account",
+      ]);
+    });
+
+    it("asks first, deletes through /api/deleteaccount, then shows the sign-in page", async () => {
+      const user = userEvent.setup();
+      const fetchMock = mockDeleteResponse(true);
+      vi.stubGlobal("fetch", fetchMock);
+      render(<UsersTable users={users} currentUserId="user1" />);
+      const row = await openActionsMenu(user, "Jane Doe");
+      await user.click(within(row).getByRole("menuitem", { name: "Delete my account" }));
+
+      const dialog = screen.getByRole("dialog", { name: "Delete your account?" });
+      expect(dialog).toHaveTextContent("you’ll be signed out");
+      expect(fetchMock).not.toHaveBeenCalled(); // nothing until confirmed
+      await user.click(within(dialog).getByRole("button", { name: "Delete my account" }));
+
+      await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/signin?deleted=1"));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/deleteaccount");
+      expect(init).toEqual({ method: "POST" }); // no user id: always the signed-in person
+    });
+
+    it("keeps you on the page with the reason if it fails", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal("fetch", mockDeleteResponse(false, { error: "User cannot be deleted." }, 409));
+      render(<UsersTable users={users} currentUserId="user1" />);
+      const row = await openActionsMenu(user, "Jane Doe");
+      await user.click(within(row).getByRole("menuitem", { name: "Delete my account" }));
+      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete my account" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("User cannot be deleted.");
+      expect(pushMock).not.toHaveBeenCalled();
+    });
+
+    it("still deletes other people through /api/deleteuser, with the usual wording", async () => {
+      const user = userEvent.setup();
+      const fetchMock = mockDeleteResponse(true);
+      vi.stubGlobal("fetch", fetchMock);
+      render(<UsersTable users={users} currentUserId="someone-else" />);
+      const row = await openActionsMenu(user, "Jane Doe");
+      await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
+      const dialog = screen.getByRole("dialog", { name: "Delete user" });
+      await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/deleteuser", expect.objectContaining({ method: "POST" })));
+      expect(pushMock).not.toHaveBeenCalled();
+    });
   });
 });

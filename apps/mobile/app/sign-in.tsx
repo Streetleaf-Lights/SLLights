@@ -10,7 +10,9 @@ import { TextField } from "@/ui/TextField";
 import { colors, space, type } from "@/ui/theme";
 
 export default function SignInScreen() {
-  const { signIn } = useAuth();
+  const { signIn, state } = useAuth();
+  // e.g. "Your account has been deleted."
+  const notice = state.status === "signedOut" ? state.notice : undefined;
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,6 +50,7 @@ export default function SignInScreen() {
             <Text style={type.small}>Use the same email and password as the Streetleaf dashboard.</Text>
           </View>
 
+          {notice && !error ? <Banner tone="success" message={notice} /> : null}
           {error ? <Banner tone="error" message={error} /> : null}
 
           <TextField

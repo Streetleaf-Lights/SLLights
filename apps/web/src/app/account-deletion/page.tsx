@@ -23,18 +23,24 @@ export default function AccountDeletionPage() {
         <strong>Streetleaf Lights</strong> app, and what happens to your information.
       </p>
 
-      <h2>How to request deletion</h2>
+      <h2>How to delete your account</h2>
       <ul>
         <li>
-          Email <a href={`mailto:${email}?subject=${subject}`}>{email}</a> from the email address you use to sign in,
-          with the subject &ldquo;Account deletion request&rdquo;.
+          <strong>In the Streetleaf Lights app:</strong> go to <strong>Account</strong> and tap{" "}
+          <strong>Delete your account</strong>, then confirm.
         </li>
         <li>
-          If you are a customer user, your organisation&rsquo;s administrator can also remove your account from the
-          Users page in the dashboard or the app.
+          <strong>In the dashboard (administrators):</strong> open <strong>Users</strong>, find your own name, and
+          choose <strong>Delete my account</strong> from its actions.
         </li>
       </ul>
-      <p>We will confirm once your account has been deleted, normally within 30 days.</p>
+      <p>Your account is deleted straight away and you are signed out.</p>
+      <p>
+        Can&rsquo;t sign in? Email <a href={`mailto:${email}?subject=${subject}`}>{email}</a> from the email address you
+        use to sign in, with the subject &ldquo;Account deletion request&rdquo;. We will confirm once your account has
+        been deleted, normally within 30 days. If you are a customer user, your organisation&rsquo;s administrator can
+        also remove your account from the Users page.
+      </p>
 
       <h2>What is deleted</h2>
       <ul>

@@ -287,7 +287,7 @@ describe("UsersPage", () => {
     expect(screen.getAllByRole("menuitem", { name: "Delete" }).length).toBeGreaterThan(0);
   });
 
-  it("hides the Delete button on a Customer Admin's own row, but still shows it for other users at the same customer", async () => {
+  it("offers only 'Delete my account' on a Customer Admin's own row, and Delete for other users at the same customer", async () => {
     getSessionUserMock.mockResolvedValue({
       // Matches Jane Doe (user1) — logged in as themselves.
       id: "user1",
@@ -304,7 +304,9 @@ describe("UsersPage", () => {
     // rows visible to this Customer Admin.
     const janeRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
     const patRow = screen.getByText("Pat Kim").closest("tr") as HTMLElement;
-    expect(within(janeRow).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
+    await user.click(within(janeRow).getByRole("button", { name: /Actions for/ }));
+    expect(within(janeRow).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Delete my account"]);
+    await user.keyboard("{Escape}");
     await user.click(within(patRow).getByRole("button", { name: /Actions for/ }));
     expect(within(patRow).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
   });
@@ -327,7 +329,7 @@ describe("UsersPage", () => {
     expect(screen.getAllByRole("menuitem", { name: "Delete" }).length).toBeGreaterThan(0);
   });
 
-  it("hides the Delete button on a Streetleaf Admin's own row, but still shows it for everyone else", async () => {
+  it("offers only 'Delete my account' on a Streetleaf Admin's own row, and Delete for everyone else", async () => {
     getSessionUserMock.mockResolvedValue({
       // Matches Alex Rivera (user2) — logged in as themselves.
       id: "user2",
@@ -343,7 +345,9 @@ describe("UsersPage", () => {
 
     const ownRow = screen.getByText("Alex Rivera").closest("tr") as HTMLElement;
     const otherRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
-    expect(within(ownRow).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
+    await user.click(within(ownRow).getByRole("button", { name: /Actions for/ }));
+    expect(within(ownRow).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Delete my account"]);
+    await user.keyboard("{Escape}");
     await user.click(within(otherRow).getByRole("button", { name: /Actions for/ }));
     expect(within(otherRow).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
   });
