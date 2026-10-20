@@ -66,6 +66,20 @@ export class ApimError extends Error {
  * where the framework would otherwise log a "Failed to set fetch cache"
  * warning on every single request while gaining no caching benefit anyway.
  */
+/** APIM's or the backend's explanation in an error response ({ message } / { error } / { title }), if any. */
+async function apimErrorDetail(res: Response): Promise<string | undefined> {
+  const text = typeof res.text === "function" ? await res.text().catch(() => "") : "";
+  try {
+    const body = JSON.parse(text) as Record<string, unknown>;
+    const found = [body.message, body.error, body.title].find((v) => typeof v === "string" && v.trim());
+    return found as string | undefined;
+  } catch {
+    // Not JSON: a short plain-text reason is still useful; skip HTML pages.
+    const plain = text.trim();
+    return plain && plain.length <= 200 && !plain.startsWith("<") ? plain : undefined;
+  }
+}
+
 export async function apimFetch<T>(
   path: string,
   options?: { tags?: string[]; noStore?: boolean; token?: string | null },
@@ -89,7 +103,13 @@ export async function apimFetch<T>(
     });
 
     if (!res.ok) {
-      throw new ApimError(`APIM request failed: ${path}`, res.status);
+      // Say which operation failed, how, and APIM's own reason (e.g. a token
+      // it rejects: "Invalid JWT." / 401) — in the server logs (Vercel → Logs)
+      // and the error. Never the token or subscription key.
+      const detail = await apimErrorDetail(res);
+      const operation = path.split("?")[0];
+      console.error(`APIM ${res.status} on ${operation}${detail ? ` — ${detail}` : ""}`);
+      throw new ApimError(`APIM request failed (${res.status}): ${operation}${detail ? ` — ${detail}` : ""}`, res.status);
     }
 
     return res.json() as Promise<T>;
@@ -906,10 +926,20 @@ export async function createPoleIssue(input: CreatePoleIssueInput, token: string
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    const message =
-      body && typeof body.error === "string" ? body.error : "Failed to report the issue.";
-    throw new ApimError(message, res.status);
+    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    const text = (v: unknown) => (typeof v === "string" && v.trim() ? v : undefined);
+    // The backend explains with { error } (e.g. "pole not found") — shown as is.
+    // APIM's own errors (e.g. an operation that doesn't exist: 404 "Resource
+    // not found") say { statusCode, message } instead — keep that too, rather
+    // than a bare "Failed", and log it so the cause shows in the server logs.
+    const backendError = text(body?.error);
+    const apimDetail = text(body?.message) ?? text(body?.title);
+    console.error(`createPoleIssue: APIM returned ${res.status}${backendError ?? apimDetail ? ` — ${backendError ?? apimDetail}` : ""}`);
+    throw new ApimError(
+      backendError ??
+        (apimDetail ? `Failed to report the issue: ${apimDetail} (${res.status}).` : `Failed to report the issue (${res.status}).`),
+      res.status,
+    );
   }
 }
 

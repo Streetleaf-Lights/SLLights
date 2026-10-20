@@ -1315,9 +1315,24 @@ describe("createPoleIssue", () => {
     );
 
     await expect(createPoleIssue(input, "jwt-token")).rejects.toMatchObject({
-      message: "Failed to report the issue.",
+      message: "Failed to report the issue (500).",
       status: 500,
     });
+  });
+
+  it("keeps APIM's own explanation (e.g. an operation that doesn't exist) and logs it", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({ statusCode: 404, message: "Resource not found" }) }),
+    );
+
+    await expect(createPoleIssue(input, "jwt-token")).rejects.toMatchObject({
+      message: "Failed to report the issue: Resource not found (404).",
+      status: 404,
+    });
+    expect(log).toHaveBeenCalledWith("createPoleIssue: APIM returned 404 — Resource not found");
+    log.mockRestore();
   });
 });
 
@@ -2119,3 +2134,37 @@ describe("stickerNumbers", () => {
     ).toMatchObject({ customerId: "c1", stickerNumbers: ["CHA-1"] });
   });
 });
+
+describe("apimFetch errors explain themselves (APIM token enforcement)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("names the operation, the status and APIM's reason — in the error and the server log", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ statusCode: 401, message: "Invalid JWT." }), { status: 401 }),
+      ),
+    );
+    await expect(getCustomer("recEKgOsGbo5LtZpa", "jwt-secret-token")).rejects.toMatchObject({
+      status: 401,
+      message: "APIM request failed (401): /getCustomers — Invalid JWT.",
+    });
+    expect(log).toHaveBeenCalledWith("APIM 401 on /getCustomers — Invalid JWT.");
+    // Never the token (or the query string) in what's logged.
+    expect(JSON.stringify(log.mock.calls)).not.toContain("jwt-secret-token");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("recEKgOsGbo5LtZpa");
+  });
+
+  it("keeps a short plain-text reason, and skips HTML error pages", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Forbidden", { status: 403 })));
+    await expect(getPoles(undefined, "t")).rejects.toMatchObject({ message: "APIM request failed (403): /getPoles — Forbidden" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<html>Server Error</html>", { status: 502 })));
+    await expect(getPoles(undefined, "t")).rejects.toMatchObject({ message: "APIM request failed (502): /getPoles" });
+  });
+});
+
