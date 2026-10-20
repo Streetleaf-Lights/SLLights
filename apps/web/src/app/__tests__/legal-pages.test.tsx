@@ -59,6 +59,11 @@ describe("public legal pages (the URLs given to the app stores)", () => {
       "Airtable",
       "Microsoft Azure",
       "not directed to children",
+      // Matches what's actually running: anonymous web visit counts, nothing in the app.
+      "counts page visits anonymously with Vercel Web Analytics",
+      "uses no cookies",
+      "the mobile app uses no analytics",
+      "do not use advertising or tracking tools",
     ]) {
       expect(text, phrase).toContain(phrase);
     }

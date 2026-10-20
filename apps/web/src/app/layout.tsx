@@ -3,6 +3,7 @@ import { Cabin, Roboto_Slab, JetBrains_Mono } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { getSessionUser } from "@/lib/session";
 import "./globals.css";
+import { WebAnalytics } from "@/components/WebAnalytics";
 
 const cabin = Cabin({
   variable: "--font-display",
@@ -53,6 +54,7 @@ export default async function RootLayout({
         >
           {children}
         </AppShell>
+        <WebAnalytics />
       </body>
     </html>
   );

@@ -46,8 +46,10 @@ export default function PrivacyPage() {
       <p>
         <strong>Camera:</strong> the app uses your camera only to read barcodes on equipment labels. No photos or video
         are stored or sent. <strong>Location</strong> is read only while you use the install screen, never in the
-        background. We do not use advertising, analytics or tracking tools, and we do not collect your contacts,
-        photos, browsing history or health or financial information.
+        background. <strong>Visit counts:</strong> the dashboard website counts page visits anonymously with Vercel Web
+        Analytics, which uses no cookies, doesn&rsquo;t identify you and never records the links in invitation or
+        password-reset emails; the mobile app uses no analytics. We do not use advertising or tracking tools, and we
+        do not collect your contacts, photos, browsing history or health or financial information.
       </p>
 
       <h2>How we use it</h2>
@@ -68,7 +70,7 @@ export default function PrivacyPage() {
         </li>
         <li>
           Service providers that host or process data for us under our instructions: Microsoft Azure (our systems and
-          APIs), Airtable (installation records), and Vercel (hosting the dashboard). Apple and Google distribute the
+          APIs), Airtable (installation records), and Vercel (hosting the dashboard and counting its visits anonymously). Apple and Google distribute the
           app.
         </li>
         <li>Others only where required by law.</li>
