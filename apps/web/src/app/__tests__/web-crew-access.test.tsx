@@ -27,6 +27,8 @@ vi.mock("@/lib/apim", async () => {
     getProjectsForCustomer: m.getProjectsForCustomer,
     getPoleVitalsForCustomer: m.getPoleVitalsForCustomer,
     getPoles: m.getPoles,
+    getPolesPage: (query: Parameters<typeof import("@/lib/apim").getPolesPage>[0], token?: string | null) =>
+    import("@/testing/fakePolesPage").then(({ fakePolesPage }) => fakePolesPage(m.getPoles)(query, token)),
   };
 });
 vi.mock("@/lib/session", async (importOriginal) => ({

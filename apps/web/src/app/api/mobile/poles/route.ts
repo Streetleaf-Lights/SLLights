@@ -7,6 +7,7 @@ import { ApimError, getCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { canViewCustomer } from "@/lib/mobile-views";
 import { cachedPoles, toPoleListRow } from "@/lib/mobile-poles";
 import { crewMaySee, crewScope } from "@/lib/crew-scope";
+import { POLES_PAGE_SIZE, pagePolesFromApi } from "@/lib/pagePoles";
 import { requireSession } from "@/lib/require-session";
 
 /**
@@ -30,7 +31,8 @@ export async function GET(request: NextRequest) {
   const viewerScoped = isCustomerScoped(session.role, session.customerId);
 
   const params = request.nextUrl.searchParams;
-  const q = (params.get("q") ?? "").trim().toLowerCase();
+  const rawQ = (params.get("q") ?? "").trim();
+  const q = rawQ.toLowerCase();
   const page = Number(params.get("page") ?? "1");
   const faults = params.get("faults") === "1";
   const customerId = params.get("customerId") ?? undefined;
@@ -47,6 +49,27 @@ export async function GET(request: NextRequest) {
   if (faults && customerId && !canViewCustomer(session, customerId)) return notFound;
 
   try {
+    // The normal list for everyone but crew: just this page, straight from
+    // APIM's paged /getPoles — no full-list download. (Crew see only their
+    // sticker projects, which APIM can't page across; faults keep our own
+    // fault rule — both below.)
+    if (!faults && !(await crewScope(session, token))) {
+      const scopeCustomerId = viewerScoped ? (session.customerId as string) : undefined;
+      const shown = await pagePolesFromApi({ page, poleNumber: rawQ, customerId: scopeCustomerId }, token);
+      // Belt and braces: never show a customer-scoped viewer anyone else's pole.
+      const rows = scopeCustomerId ? shown.rows.filter((pole) => pole.customerId === scopeCustomerId) : shown.rows;
+      const firstItem = rows.length ? (shown.page - 1) * POLES_PAGE_SIZE + 1 : 0;
+      const body: PoleListResponse = {
+        rows: rows.map((pole) => toPoleListRow(pole, viewerScoped)),
+        page: shown.page,
+        totalPages: shown.totalPages,
+        totalItems: shown.total,
+        firstItem,
+        lastItem: firstItem ? firstItem + rows.length - 1 : 0,
+      };
+      return NextResponse.json(body, noStore);
+    }
+
     let poles;
     let projectNames: Record<string, string> | undefined;
     let customerName: string | null | undefined;

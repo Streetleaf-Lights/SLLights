@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { getCustomer, getPoles, getProjectsForCustomer } from "@/lib/apim";
 import { cachedPoles } from "@/lib/mobile-poles";
-import { pagePoles } from "@/lib/pagePoles";
+import { pagePoles, pagePolesFromApi } from "@/lib/pagePoles";
 import { crewScope } from "@/lib/crew-scope";
 import { getSessionToken, getSessionUser, isCustomerScoped } from "@/lib/session";
 import { isSilentPole } from "@/lib/text";
@@ -79,13 +79,22 @@ export default async function PolesPage({
     );
   }
 
-  // The full list (~14,000 poles for staff) stays on the server, kept per
-  // person for a few minutes (see cachedPoles); the browser gets one page.
-  const allPoles = token
-    ? await cachedPoles(customerScoped && sessionUser?.customerId ? { customerId: sessionUser.customerId } : {}, token)
-    : [];
-  const poles = crew ? allPoles.filter((pole) => crew.projectIds.has(pole.projectId)) : allPoles;
-  const shown = pagePoles(poles, poleQ, page);
+  const scopeCustomerId = customerScoped && sessionUser?.customerId ? sessionUser.customerId : undefined;
+  let shown;
+  if (token && !crew) {
+    // Just this page, straight from APIM's paged /getPoles (searched and
+    // sorted there) — no full-list download.
+    shown = await pagePolesFromApi({ page, poleNumber: poleQ, customerId: scopeCustomerId }, token);
+    // Belt and braces: never show a customer-scoped viewer anyone else's pole.
+    if (scopeCustomerId) shown = { ...shown, rows: shown.rows.filter((pole) => pole.customerId === scopeCustomerId) };
+  } else {
+    // Crew see only their sticker projects, which APIM can't page across
+    // (it filters one project at a time): the full list, kept per person for
+    // a few minutes (see cachedPoles), filtered and paged here.
+    const allPoles = token ? await cachedPoles(scopeCustomerId ? { customerId: scopeCustomerId } : {}, token) : [];
+    const poles = crew ? allPoles.filter((pole) => crew.projectIds.has(pole.projectId)) : allPoles;
+    shown = pagePoles(poles, poleQ, page);
+  }
 
   return (
     <>

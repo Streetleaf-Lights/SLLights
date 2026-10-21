@@ -18,6 +18,9 @@ const {
 
 vi.mock("@/lib/apim", () => ({
   getPoles: getPolesMock,
+  // APIM's paged /getPoles, answered from the same pole data (see fakePolesPage).
+  getPolesPage: (query: Parameters<typeof import("@/lib/apim").getPolesPage>[0], token?: string | null) =>
+    import("@/testing/fakePolesPage").then(({ fakePolesPage }) => fakePolesPage(getPolesMock)(query, token)),
   getCustomer: getCustomerMock,
   getProjectsForCustomer: getProjectsForCustomerMock,
 }));

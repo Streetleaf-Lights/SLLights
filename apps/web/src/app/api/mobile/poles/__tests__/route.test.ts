@@ -10,7 +10,15 @@ const { getPolesMock, projectsMock, customerMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/apim", async () => {
   const actual = await vi.importActual<typeof import("@/lib/apim")>("@/lib/apim");
-  return { ...actual, getPoles: getPolesMock, getProjectsForCustomer: projectsMock, getCustomer: customerMock };
+  return {
+    ...actual,
+    getPoles: getPolesMock,
+    // APIM's paged /getPoles, answered from the same pole data (see fakePolesPage).
+    getPolesPage: (query: Parameters<typeof import("@/lib/apim").getPolesPage>[0], token?: string | null) =>
+    import("@/testing/fakePolesPage").then(({ fakePolesPage }) => fakePolesPage(getPolesMock)(query, token)),
+    getProjectsForCustomer: projectsMock,
+    getCustomer: customerMock,
+  };
 });
 
 import { ApimError } from "@/lib/apim";
@@ -61,9 +69,11 @@ describe("GET /api/mobile/poles — all poles", () => {
     const body = await (await call(staff, "?page=2")).json();
     expect(body).toMatchObject({ page: 2, totalPages: 3, totalItems: 23, firstItem: 11, lastItem: 20 });
     expect(body.rows).toHaveLength(10);
+    // APIM sorts by pole number as text: PAS-1, PAS-10…PAS-19, PAS-2, PAS-20…,
+    // so the 11th pole (first on page 2) is PAS-19.
     expect(body.rows[0]).toEqual({
-      id: "id11",
-      poleNumber: "PAS-11",
+      id: "id19",
+      poleNumber: "PAS-19",
       customerId: "c1",
       projectId: "p1",
       isOnline: true,
@@ -133,10 +143,10 @@ describe("GET /api/mobile/poles — faults view", () => {
 });
 
 describe("the per-scope cache", () => {
-  it("reuses a scope's list for repeat requests, so paging doesn't re-download every pole", async () => {
-    await call(staff, "?page=1");
-    await call(staff, "?page=2");
-    await call(staff, "?q=pas");
+  it("reuses the full list for repeat faults requests, so paging there doesn't re-download it", async () => {
+    // (The normal list asks APIM for one page at a time instead — see below.)
+    await call(staff, "?faults=1&customerId=c1");
+    await call(staff, "?faults=1&customerId=c1&page=2");
     expect(getPolesMock).toHaveBeenCalledTimes(1);
   });
 

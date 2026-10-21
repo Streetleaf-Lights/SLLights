@@ -13,7 +13,12 @@ const m = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/apim", async () => {
   const actual = await vi.importActual<typeof import("@/lib/apim")>("@/lib/apim");
-  return { ...actual, ...m };
+  return {
+    ...actual,
+    ...m,
+    getPolesPage: (query: Parameters<typeof import("@/lib/apim").getPolesPage>[0], token?: string | null) =>
+    import("@/testing/fakePolesPage").then(({ fakePolesPage }) => fakePolesPage(m.getPoles)(query, token)),
+  };
 });
 vi.mock("@/lib/leadsunClient", () => ({ fetchLeadsunLampStatus: vi.fn(async () => []) }));
 

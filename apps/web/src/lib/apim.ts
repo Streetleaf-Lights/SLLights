@@ -348,6 +348,40 @@ function buildPoleQuery(filters?: PoleFilters & { summary?: boolean }): string {
   return qs ? `?${qs}` : "";
 }
 
+/** One page of /getPoles (page is 1-based). */
+export interface PolesPageResult {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: PoleSummary[];
+}
+
+/**
+ * GET /getPoles?page=…&pageSize=… — one page of poles, sorted by pole number
+ * on the server, optionally searched (poleNumber) and filtered (customerId,
+ * projectId). Unlike the full list, a page is small, so it can use Next's
+ * fetch cache (APIM_CACHE_SECONDS) — keyed by URL and headers, so each
+ * person's token gets its own entry (APIM returns different poles per user).
+ * pageSize: APIM's default is 50, capped at 1000.
+ */
+export async function getPolesPage(
+  query: { page: number; pageSize: number; poleNumber?: string; customerId?: string; projectId?: string },
+  token?: string | null,
+): Promise<PolesPageResult> {
+  const params = new URLSearchParams({
+    page: String(Math.max(1, Math.floor(query.page) || 1)),
+    pageSize: String(Math.min(1000, Math.max(1, Math.floor(query.pageSize) || 50))),
+  });
+  if (query.poleNumber?.trim()) params.set("poleNumber", query.poleNumber.trim());
+  if (query.customerId) params.set("customerId", query.customerId);
+  if (query.projectId) params.set("projectId", query.projectId);
+  const raw = await apimFetch<Partial<PolesPageResult>>(`/getPoles?${params.toString()}`, { token });
+  if (!raw || !Array.isArray(raw.items) || typeof raw.total !== "number") {
+    throw new ApimError("APIM returned an unexpected /getPoles page.", 502);
+  }
+  return { total: raw.total, page: raw.page ?? query.page, pageSize: raw.pageSize ?? query.pageSize, items: raw.items };
+}
+
 /**
  * GET /getPoles?summary=true, optionally filtered by projectId and/or
  * customerId. Summary mode lifts the 1000-row cap the plain endpoint

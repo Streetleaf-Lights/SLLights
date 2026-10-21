@@ -9,6 +9,7 @@ import {
   getPoleVitalsByPeriod,
   getPoleVitalsForCustomer,
   getPoles,
+  getPolesPage,
   deleteUser,
   forgotPassword,
   getProjectsForCustomer,
@@ -2168,3 +2169,33 @@ describe("apimFetch errors explain themselves (APIM token enforcement)", () => {
   });
 });
 
+
+describe("getPolesPage (APIM's paged /getPoles)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("asks for one page with the search and scope, and the person's token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ total: 60, page: 2, pageSize: 10, items: [{ id: "r1", poleNumber: "PAS-5571" }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await getPolesPage({ page: 2, pageSize: 10, poleNumber: " PAS ", customerId: "c1" }, "jwt-token");
+    const [url, init] = fetchMock.mock.calls[0];
+    const sent = new URL(String(url));
+    expect(sent.pathname.endsWith("/getPoles")).toBe(true);
+    expect(Object.fromEntries(sent.searchParams)).toEqual({ page: "2", pageSize: "10", poleNumber: "PAS", customerId: "c1" });
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer jwt-token");
+    expect(result).toEqual({ total: 60, page: 2, pageSize: 10, items: [{ id: "r1", poleNumber: "PAS-5571" }] });
+  });
+
+  it("keeps the page size within APIM's limit (1000) and pages from 1", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ total: 0, page: 1, pageSize: 1000, items: [] })));
+    vi.stubGlobal("fetch", fetchMock);
+    await getPolesPage({ page: 0, pageSize: 5000 }, "t");
+    expect(Object.fromEntries(new URL(String(fetchMock.mock.calls[0][0])).searchParams)).toEqual({ page: "1", pageSize: "1000" });
+  });
+
+  it("reports an unexpected response (e.g. the old full-list format) as an error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify([{ id: "r1" }]))));
+    await expect(getPolesPage({ page: 1, pageSize: 10 }, "t")).rejects.toMatchObject({ status: 502 });
+  });
+});
