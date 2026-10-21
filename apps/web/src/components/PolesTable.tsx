@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Toolbar } from "@/components/Toolbar";
 import { Pagination } from "@/components/Pagination";
 import {
@@ -20,6 +20,7 @@ export function PolesTable({
   customerScoped = false,
   customerName,
   projectNames,
+  serverPaging,
 }: {
   poles: PoleSummary[];
   /**
@@ -51,6 +52,14 @@ export function PolesTable({
    * ones), since a customer can have multiple projects.
    */
   projectNames?: Record<string, string>;
+  /**
+   * Set for the main Poles list, which is paged and searched on the server:
+   * `poles` is then just this page's rows, and the search box and page
+   * buttons update the URL (?pole_q=…&page=…) for the server to answer.
+   * Without it (the faults view, already small), all rows come at once and
+   * paging/search happen here.
+   */
+  serverPaging?: { total: number; unfilteredTotal: number; page: number; totalPages: number };
 }) {
   const searchParams = useSearchParams();
   const poleQ = searchParams.get("pole_q") ?? "";
@@ -66,15 +75,41 @@ export function PolesTable({
     setPage(1);
   }
 
+  const router = useRouter();
+  const pathname = usePathname();
+  // Server paging: ask the server for a page / search via the URL.
+  const navigate = (next: { pole_q?: string; page?: number }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next.pole_q !== undefined) {
+      if (next.pole_q.trim()) params.set("pole_q", next.pole_q.trim());
+      else params.delete("pole_q");
+      params.delete("page");
+    }
+    if (next.page !== undefined) {
+      if (next.page > 1) params.set("page", String(next.page));
+      else params.delete("page");
+    }
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  };
+  // Typing waits a moment before asking the server, rather than on every key.
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+  }, []);
+
   const filtered = useMemo(() => {
+    if (serverPaging) return poles; // already searched on the server
     const q = query.trim().toLowerCase();
     if (!q) return poles;
     return poles.filter((pole) => pole.poleNumber.toLowerCase().includes(q));
-  }, [poles, query]);
+  }, [poles, query, serverPaging]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pagePoles = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const matchCount = serverPaging ? serverPaging.total : filtered.length;
+  const anyPoles = serverPaging ? serverPaging.unfilteredTotal > 0 : poles.length > 0;
+  const totalPages = serverPaging ? serverPaging.totalPages : Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = serverPaging ? serverPaging.page : Math.min(page, totalPages);
+  const pagePoles = serverPaging ? poles : filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // Only present when arriving via a "Total faults" link — never via normal navigation.
   const showProjectColumn = Boolean(projectNames && Object.keys(projectNames).length > 0);
@@ -83,19 +118,28 @@ export function PolesTable({
   function handleQueryChange(next: string) {
     setQuery(next);
     setPage(1);
+    if (serverPaging) {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+      searchTimer.current = setTimeout(() => navigate({ pole_q: next }), 300);
+    }
+  }
+
+  function handlePageChange(next: number) {
+    if (serverPaging) navigate({ page: next });
+    else setPage(next);
   }
 
   return (
     <>
       <Toolbar
         searchPlaceholder="Search by pole number…"
-        resultCount={`${filtered.length} ${filtered.length === 1 ? "pole" : "poles"}`}
+        resultCount={`${matchCount} ${matchCount === 1 ? "pole" : "poles"}`}
         value={query}
         onChange={handleQueryChange}
       />
-      {filtered.length === 0 ? (
+      {matchCount === 0 ? (
         <p className="mx-8 text-[12.5px] text-[var(--ink-faint)]">
-          {poles.length === 0 ? "No poles on file yet." : "No poles match your search."}
+          {!anyPoles ? "No poles on file yet." : "No poles match your search."}
         </p>
       ) : (
         <>
@@ -181,7 +225,7 @@ export function PolesTable({
               </tbody>
             </table>
           </div>
-          <Pagination page={currentPage} totalPages={totalPages} onPageChange={setPage} />
+          <Pagination page={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
         </>
       )}
     </>

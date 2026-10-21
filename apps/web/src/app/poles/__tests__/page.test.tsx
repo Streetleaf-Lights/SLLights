@@ -33,6 +33,8 @@ vi.mock("@/lib/session", async (importOriginal) => {
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/poles",
 }));
 
 import PolesPage from "@/app/poles/page";
@@ -407,4 +409,50 @@ describe("PolesPage", () => {
       expect(getCustomerMock).not.toHaveBeenCalled();
     });
   });
+
+  describe("server paging (only one page is sent to the browser)", () => {
+    const many = Array.from({ length: 25 }, (_, i) => ({
+      id: `p${i + 1}`,
+      poleNumber: `PAS-${String(i + 1).padStart(3, "0")}`,
+      customerId: "c1",
+      projectId: "pr1",
+      isOnline: true,
+      connectedText: "Online",
+      overallStatusText: "OK",
+      lightStatusText: "OK",
+      panelStatusText: "Charging",
+      panelIdleReason: null,
+      batteryStatusText: "OK",
+      isPoleFault: false,
+      lastUpdate: null,
+    }));
+    const bodyRows = () => screen.getAllByRole("row").slice(1); // minus the header row
+
+    beforeEach(() => {
+      getSessionUserMock.mockResolvedValue({ id: "sa", role: "Streetleaf Admin", customerId: null });
+      getPolesMock.mockResolvedValue(many);
+    });
+
+    it("shows page 2's ten poles, with the total count", async () => {
+      render(await PolesPage({ searchParams: Promise.resolve({ page: "2" }) }));
+      expect(bodyRows()).toHaveLength(10);
+      expect(bodyRows()[0]).toHaveTextContent("PAS-011");
+      expect(screen.getByText("25 poles")).toBeInTheDocument();
+    });
+
+    it("searches on the server (pole_q), counting the matches", async () => {
+      render(await PolesPage({ searchParams: Promise.resolve({ pole_q: "pas-02" }) }));
+      expect(bodyRows().map((r) => r.textContent?.match(/PAS-\d+/)?.[0])).toEqual(["PAS-020", "PAS-021", "PAS-022", "PAS-023", "PAS-024", "PAS-025"]);
+      expect(screen.getByText("6 poles")).toBeInTheDocument();
+    });
+
+    it("hands the table only this page's rows, never the whole list", async () => {
+      const jsx = await PolesPage({ searchParams: Promise.resolve({}) });
+      const json = JSON.stringify(jsx, (_k, v) => (typeof v === "function" ? undefined : v));
+      expect(json).toContain("PAS-010");
+      expect(json).not.toContain("PAS-011");
+      expect(json).not.toContain("PAS-025");
+    });
+  });
 });
+

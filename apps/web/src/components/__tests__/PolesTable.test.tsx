@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { PoleSummary } from "@/lib/types";
 
-const { useSearchParamsMock } = vi.hoisted(() => ({ useSearchParamsMock: vi.fn() }));
+const { useSearchParamsMock, pushMock } = vi.hoisted(() => ({ useSearchParamsMock: vi.fn(), pushMock: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   useSearchParams: useSearchParamsMock,
+  useRouter: () => ({ push: pushMock, replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/poles",
 }));
 
 import { PolesTable } from "@/components/PolesTable";
@@ -467,4 +469,42 @@ describe("PolesTable", () => {
     await user.type(screen.getByPlaceholderText("Search by pole number…"), "pole-2");
     expect(screen.getByText("pole-2")).toBeInTheDocument();
   });
+
+  describe("server paging (the main Poles list)", () => {
+    const rows = Array.from({ length: 10 }, (_, i) => makePole({ id: `p${i + 11}`, poleNumber: `PAS-${i + 11}` }));
+    const serverPaging = { total: 25, unfilteredTotal: 25, page: 2, totalPages: 3 };
+
+    beforeEach(() => {
+      pushMock.mockClear();
+      useSearchParamsMock.mockReturnValue(new URLSearchParams("page=2"));
+    });
+
+    it("shows the server's page and total, without filtering again", () => {
+      render(<PolesTable poles={rows} serverPaging={serverPaging} />);
+      expect(screen.getAllByRole("row").slice(1)).toHaveLength(10);
+      expect(screen.getByText("25 poles")).toBeInTheDocument();
+    });
+
+    it("asks the server for another page via the URL", async () => {
+      const user = userEvent.setup();
+      render(<PolesTable poles={rows} serverPaging={serverPaging} />);
+      await user.click(screen.getByRole("button", { name: "3" }));
+      expect(pushMock).toHaveBeenCalledWith("/poles?page=3");
+    });
+
+    it("searches via the URL a moment after typing stops, from page 1", async () => {
+      const user = userEvent.setup();
+      render(<PolesTable poles={rows} serverPaging={serverPaging} />);
+      await user.type(screen.getByPlaceholderText("Search by pole number…"), "PAS-02");
+      expect(pushMock).not.toHaveBeenCalled(); // not on every key
+      await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/poles?pole_q=PAS-02"), { timeout: 1500 });
+      expect(pushMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("tells 'no poles on file' from 'no matches'", () => {
+      render(<PolesTable poles={[]} serverPaging={{ total: 0, unfilteredTotal: 25, page: 1, totalPages: 1 }} />);
+      expect(screen.getByText("No poles match your search.")).toBeInTheDocument();
+    });
+  });
 });
+

@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { getCustomer, getPoles, getProjectsForCustomer } from "@/lib/apim";
+import { cachedPoles } from "@/lib/mobile-poles";
+import { pagePoles } from "@/lib/pagePoles";
 import { crewScope } from "@/lib/crew-scope";
 import { getSessionToken, getSessionUser, isCustomerScoped } from "@/lib/session";
 import { isSilentPole } from "@/lib/text";
@@ -11,9 +13,9 @@ export const dynamic = "force-dynamic";
 export default async function PolesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ customerId?: string; projectId?: string; faults?: string }>;
+  searchParams: Promise<{ customerId?: string; projectId?: string; faults?: string; pole_q?: string; page?: string }>;
 }) {
-  const { customerId, projectId, faults } = await searchParams;
+  const { customerId, projectId, faults, pole_q: poleQ, page } = await searchParams;
   const [sessionUser, token] = await Promise.all([getSessionUser(), getSessionToken()]);
   const customerScoped = isCustomerScoped(sessionUser?.role, sessionUser?.customerId);
   // Streetleaf Crew: only poles in active projects with sticker numbers.
@@ -77,19 +79,23 @@ export default async function PolesPage({
     );
   }
 
-  const allPoles = await getPoles(
-    customerScoped && sessionUser?.customerId
-      ? { customerId: sessionUser.customerId }
-      : undefined,
-    token,
-  );
+  // The full list (~14,000 poles for staff) stays on the server, kept per
+  // person for a few minutes (see cachedPoles); the browser gets one page.
+  const allPoles = token
+    ? await cachedPoles(customerScoped && sessionUser?.customerId ? { customerId: sessionUser.customerId } : {}, token)
+    : [];
   const poles = crew ? allPoles.filter((pole) => crew.projectIds.has(pole.projectId)) : allPoles;
+  const shown = pagePoles(poles, poleQ, page);
 
   return (
     <>
       <PageHeader title="Poles" />
       <Suspense>
-        <PolesTable poles={poles} customerScoped={customerScoped} />
+        <PolesTable
+          poles={shown.rows}
+          customerScoped={customerScoped}
+          serverPaging={{ total: shown.total, unfilteredTotal: shown.unfilteredTotal, page: shown.page, totalPages: shown.totalPages }}
+        />
       </Suspense>
     </>
   );
