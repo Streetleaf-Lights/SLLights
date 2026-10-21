@@ -157,6 +157,13 @@ export default async function PoleDetailPage({
               <span className="text-[var(--ink-faint)]">Install Date:</span>{" "}
               {pole.installDate ?? "—"}
             </span>
+            {/* Streetleaf staff only. */}
+            {!viewerIsCustomerScoped && (
+              <span>
+                <span className="text-[var(--ink-faint)]">Controller:</span>{" "}
+                <span className="font-mono-data">{pole.controllerId || "—"}</span>
+              </span>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <span>

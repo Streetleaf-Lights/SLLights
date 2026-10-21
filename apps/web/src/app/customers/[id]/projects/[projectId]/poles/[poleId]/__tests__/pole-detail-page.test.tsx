@@ -388,6 +388,48 @@ describe("PoleDetailPage", () => {
     );
   });
 
+  describe("Controller", () => {
+    const withController = (controllerId: string | null | undefined): CustomerPoleVitals => ({
+      ...vitals,
+      projects: vitals.projects.map((p) => ({ ...p, poles: p.poles.map((pole) => ({ ...pole, controllerId })) })),
+    });
+    const renderWith = async (controllerId: string | null | undefined) => {
+      getCustomerMock.mockResolvedValue(customer);
+      getProjectsForCustomerMock.mockResolvedValue(projects);
+      getPoleVitalsForCustomerMock.mockResolvedValue(withController(controllerId));
+      render(
+        await PoleDetailPage({
+          params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+          searchParams: Promise.resolve({}),
+        }),
+      );
+    };
+
+    it("shows the pole's controller on the row under Install Date", async () => {
+      await renderWith("12607D38CF");
+      const row = screen.getByText("Controller:").parentElement!;
+      expect(row).toHaveTextContent("Controller: 12607D38CF");
+      // Same group, directly after Install Date.
+      const group = row.parentElement!;
+      const labels = Array.from(group.children).map((c) => c.textContent?.split(":")[0]);
+      expect(labels).toEqual(["Last Update", "Install Date", "Controller"]);
+    });
+
+    it("isn't shown to customer users (Streetleaf staff only)", async () => {
+      getSessionUserMock.mockResolvedValue({ id: "u2", role: "Customer Admin", customerId: "r2" });
+      await renderWith("12607D38CF");
+      expect(screen.queryByText("Controller:")).not.toBeInTheDocument();
+      expect(screen.queryByText("12607D38CF")).not.toBeInTheDocument();
+      // Still the page itself (the header's other details are there).
+      expect(screen.getByText("Install Date:")).toBeInTheDocument();
+    });
+
+    it.each([[null], [""], [undefined]])("shows a dash when the controller is %p", async (controllerId) => {
+      await renderWith(controllerId);
+      expect(screen.getByText("Controller:").parentElement).toHaveTextContent("Controller: —");
+    });
+  });
+
   it("shows the header's Overall Status exactly as overallStatusText sends it — 'Not Reporting 48H', a value the old isPoleFault-based computation never produced — even when isPoleFault suggests otherwise", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);

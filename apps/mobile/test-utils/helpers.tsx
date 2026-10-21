@@ -105,7 +105,7 @@ export function makePoleDetail(viewerScoped: boolean, pole: PoleVital = makePole
       lat: pole.lat,
       long: pole.long,
       connection: connectionStatusTone(pole.isOnline, pole.lastUpdate),
-      ...(viewerScoped ? {} : { overallStatusText: pole.overallStatusText }),
+      ...(viewerScoped ? {} : { overallStatusText: pole.overallStatusText, controllerId: pole.controllerId ?? null }),
       cards: buildPoleStatusCards(pole, viewerScoped),
       issues: pole.poleIssues,
       hasRemoteControl: false,

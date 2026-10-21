@@ -347,6 +347,11 @@ export interface PoleDetailResponse {
     active: boolean;
     lastUpdate: string | null;
     installDate: string | null;
+    /**
+     * The pole's controller id (null when none is recorded) — Streetleaf staff
+     * only; absent for customer-scoped viewers.
+     */
+    controllerId?: string | null;
     lat: number | null;
     long: number | null;
     connection: ToneText;

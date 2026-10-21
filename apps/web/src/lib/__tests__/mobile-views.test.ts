@@ -104,3 +104,23 @@ describe("toProjectDetail", () => {
     expect(toProjectDetail(customer, project("p1", "North"), undefined).poles).toEqual([]);
   });
 });
+
+describe("toPoleDetail: controller", () => {
+  it("leaves the controller out entirely for customer users (staff only)", async () => {
+    const { toPoleDetail } = await import("@/lib/mobile-views");
+    const detail = toPoleDetail(customer, project("p1", "North"), { ...pole("PAS-1"), controllerId: "12607D38CF" }, true);
+    expect("controllerId" in detail.pole).toBe(false);
+    expect(JSON.stringify(detail)).not.toContain("12607D38CF");
+  });
+
+  it("passes the pole's controller through to the app for staff, or null when there's none", async () => {
+    const { toPoleDetail } = await import("@/lib/mobile-views");
+    const base = pole("PAS-1");
+    const build = (controllerId: string | null | undefined) =>
+      toPoleDetail(customer, project("p1", "North"), { ...base, controllerId }, false).pole.controllerId;
+    expect(build("12607D38CF")).toBe("12607D38CF");
+    expect(build(null)).toBeNull();
+    expect(build(undefined)).toBeNull();
+  });
+});
+

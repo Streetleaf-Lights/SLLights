@@ -127,7 +127,8 @@ export function toPoleDetail(
       lat: pole.lat,
       long: pole.long,
       connection: connectionStatusTone(pole.isOnline, pole.lastUpdate),
-      ...(viewerScoped ? {} : { overallStatusText: pole.overallStatusText }),
+      // Staff only: customer-scoped viewers don't receive these at all.
+      ...(viewerScoped ? {} : { overallStatusText: pole.overallStatusText, controllerId: pole.controllerId ?? null }),
       cards: buildPoleStatusCards(pole, viewerScoped),
       issues: pole.poleIssues ?? [],
       hasRemoteControl: findLeadsunProduct(project.leadsunProject, pole.locationId) !== undefined,

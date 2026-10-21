@@ -93,6 +93,8 @@ export function PoleDetailView({
             {/* Date only — the time doesn't fit beside the coordinates on a phone. */}
             <Fact label="Last Update" value={formatDate(pole.lastUpdate)} />
             <Fact label="Install Date" value={pole.installDate ?? "—"} />
+            {/* Streetleaf staff only: the server leaves it out for customer users. */}
+            {pole.controllerId !== undefined ? <Fact label="Controller" value={pole.controllerId || "—"} /> : null}
           </View>
           <View style={styles.factColumn} testID="pole-coordinates">
             <Fact label="Lat" value={formatCoordinate(pole.lat)} />

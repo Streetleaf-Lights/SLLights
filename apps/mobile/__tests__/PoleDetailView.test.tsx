@@ -45,7 +45,7 @@ describe("PoleDetailView (the web pole page)", () => {
     // (Testing Library trims trailing spaces before matching, hence /:$/.)
     const text = (children: unknown) => ([] as unknown[]).concat(children).join("").trim();
     const order = (scope: typeof dates) => scope.getAllByText(/:$/).map((n) => text(n.props.children));
-    expect(order(dates)).toEqual(["Last Update:", "Install Date:"]);
+    expect(order(dates)).toEqual(["Last Update:", "Install Date:", "Controller:"]);
     expect(order(coordinates)).toEqual(["Lat:", "Long:"]);
     // Last Update shows the date only.
     expect(dates.getByText("2026-10-01")).toBeTruthy();
@@ -53,6 +53,23 @@ describe("PoleDetailView (the web pole page)", () => {
     expect(dates.getByText("2026-03-02")).toBeTruthy();
     expect(coordinates.getByText("27.95")).toBeTruthy();
     expect(coordinates.getByText("-82.46")).toBeTruthy();
+  });
+
+  it("shows the pole's controller under Install Date", async () => {
+    await renderPole(false, { controllerId: "12607D38CF" });
+    expect(within(screen.getByTestId("pole-dates")).getByText("12607D38CF")).toBeTruthy();
+  });
+
+  it.each([[null], [""], [undefined]])("shows a dash for the controller when it's %p", async (controllerId) => {
+    await renderPole(false, { controllerId });
+    // Last Update and Install Date have values here, so the only dash is the controller's.
+    expect(within(screen.getByTestId("pole-dates")).getByText("—")).toBeTruthy();
+  });
+
+  it("doesn't show the controller to customer users (Streetleaf staff only)", async () => {
+    await renderPole(true, { controllerId: "12607D38CF" });
+    expect(screen.queryByText(/^Controller:\s*$/)).toBeNull(); // (labels are matched trimmed)
+    expect(screen.queryByText("12607D38CF")).toBeNull();
   });
 
   it("shows the four status cards with the staff metrics", async () => {

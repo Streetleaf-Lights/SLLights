@@ -105,6 +105,8 @@ export interface PoleVital {
   active: boolean;
   isOnline: boolean | null;
   installDate: string | null;
+  /** The pole's controller (e.g. "12607D38CF"); null when none is recorded. */
+  controllerId?: string | null;
   lat: number | null;
   long: number | null;
   lastUpdate: string | null;
