@@ -4,9 +4,34 @@ import { getPagerLayout } from "@sllights/shared/pagination";
 import { colors, radius, space } from "./theme";
 
 const WINDOW = 3;
-// 36pt buttons keep the fullest row (1 ‹ … 4 5 6 … › 9, ~316pt) inside a
-// 375pt-wide phone's list padding; hitSlop extends each touch area.
+// 36pt buttons; hitSlop extends each touch area.
 const SIZE = 36;
+/** Width of the "…" between page numbers. */
+const GAP_WIDTH = 14;
+/** The narrowest common phone (360pt) minus the list's 16pt side padding. */
+export const PAGER_ROW_BUDGET = 328;
+
+/**
+ * Page-number button size for a pager, from its largest page number, so every
+ * number fits in full: 1–3 digits keep 36pt buttons and 15pt text; 4 digits
+ * (e.g. 1521) get 40pt buttons with 13pt text; 5+ digits 40pt with 11pt.
+ * Worked to the fullest row — 1 ‹ … 760 761 762 … › 1521: five numbers, two
+ * arrows, two gaps and eight 4pt spaces — fitting PAGER_ROW_BUDGET (see
+ * pagerRowWidth). The number also shrinks to fit as a safety net (fonts vary).
+ */
+export function pagerSizing(totalPages: number): { width: number; fontSize: number } {
+  const digits = String(Math.max(1, Math.floor(totalPages))).length;
+  if (digits <= 3) return { width: SIZE, fontSize: 15 };
+  if (digits === 4) return { width: 40, fontSize: 13 };
+  return { width: 40, fontSize: 11 };
+}
+
+/** The fullest row's width for a page count: page 1 + three pages + the last, arrows, gaps, spacing. */
+export function pagerRowWidth(totalPages: number): number {
+  const { width } = pagerSizing(totalPages);
+  const numbers = SIZE + 4 * width; // "1" is never wider than a 36pt button
+  return numbers + 2 * SIZE + 2 * GAP_WIDTH + 8 * space.xs;
+}
 
 /**
  * 1 ‹ … 4 5 6 … › 9 — the web pager's layout (First, Previous, pages,
@@ -26,12 +51,20 @@ export function Pagination({
 }) {
   if (totalPages <= 1) return null;
   const { first, middle, last } = getPagerLayout(page, totalPages, WINDOW);
+  const sizing = pagerSizing(totalPages);
 
   const pageButton = (p: number) => {
     const current = p === page;
     return (
-      <PagerButton key={p} label={`Page ${p}`} selected={current} onPress={() => onPageChange(p)}>
-        <Text style={[styles.number, current && styles.numberCurrent]}>{p}</Text>
+      <PagerButton key={p} label={`Page ${p}`} selected={current} width={sizing.width} onPress={() => onPageChange(p)}>
+        <Text
+          style={[styles.number, { fontSize: sizing.fontSize }, current && styles.numberCurrent]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+        >
+          {p}
+        </Text>
       </PagerButton>
     );
   };
@@ -59,12 +92,15 @@ function PagerButton({
   label,
   selected = false,
   disabled = false,
+  width = SIZE,
   onPress,
   children,
 }: {
   label: string;
   selected?: boolean;
   disabled?: boolean;
+  /** Page numbers widen for 4+ digits (see pagerSizing); arrows stay square. */
+  width?: number;
   onPress: () => void;
   children: React.ReactNode;
 }) {
@@ -78,6 +114,7 @@ function PagerButton({
       hitSlop={6}
       style={({ pressed }) => [
         styles.button,
+        { width },
         selected && styles.buttonCurrent,
         pressed && styles.pressed,
         disabled && styles.disabled,
@@ -99,8 +136,8 @@ function Gap() {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.xs },
   button: {
-    width: SIZE,
     height: SIZE,
+    paddingHorizontal: 2,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
@@ -114,5 +151,5 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.45 },
   number: { fontSize: 15, fontWeight: "600", color: colors.inkMuted, fontVariant: ["tabular-nums"] },
   numberCurrent: { color: colors.accentInk },
-  gap: { width: 14, textAlign: "center", fontSize: 15, color: colors.inkFaint },
+  gap: { width: GAP_WIDTH, textAlign: "center", fontSize: 15, color: colors.inkFaint },
 });

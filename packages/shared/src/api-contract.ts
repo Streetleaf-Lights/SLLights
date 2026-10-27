@@ -1,6 +1,7 @@
 import type { PoleStatusCard, ToneText } from "./pole-detail";
 import type { LampState } from "./remote-control";
 import type { UserActions, UserStatus } from "./users";
+import type { InstallProjectSetup } from "./install-options";
 import type { AuthUser, PoleIssue, PoleSummary, PoleVitalPeriod } from "./types";
 
 /**
@@ -261,7 +262,14 @@ export interface TransferOwnershipResponse {
 export interface InstallOptionsResponse {
   /** When the server produced this list (ISO-8601). */
   generatedAt: string;
-  projects: { id: string; name: string; customerName: string | null; stickerNumbers: string[] }[];
+  projects: {
+    id: string;
+    name: string;
+    customerName: string | null;
+    stickerNumbers: string[];
+    /** The warehouse's setup (Leadsun project, gateways); absent in lists saved before it existed. */
+    setup?: InstallProjectSetup;
+  }[];
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Crypto from "expo-crypto";
-import { remainingInstallOptions, stickerKey } from "@sllights/shared/install-options";
+import { installReadiness, remainingInstallOptions, stickerKey } from "@sllights/shared/install-options";
 import {
   INSTALL_NOTES_MAX_LENGTH,
   validateInstallDraft,
@@ -9,6 +9,7 @@ import {
 } from "@sllights/shared/install-submission";
 import { useInstallQueue } from "@/installs/InstallQueueProvider";
 import { PendingInstalls } from "@/installs/PendingInstalls";
+import { ProjectSetupBox } from "@/installs/ProjectSetupBox";
 import { SerialField } from "@/installs/SerialField";
 import { useFormScroll } from "@/installs/useFormScroll";
 import { useInstallOptions } from "@/installs/useInstallOptions";
@@ -20,14 +21,22 @@ import { SelectField } from "@/ui/SelectField";
 import { FieldLabel, TextField } from "@/ui/TextField";
 import { colors, radius, space } from "@/ui/theme";
 
-type ScanTarget = "lightHeadSerial" | "solarPanelSerial";
+type ScanTarget = "lightHeadSerial" | "solarPanelSerial" | "gatewaySerial";
 const SCAN_TITLES: Record<ScanTarget, string> = {
   lightHeadSerial: "Scan Light Head Serial Number",
   solarPanelSerial: "Scan Solar Panel Serial Number",
+  gatewaySerial: "Scan Gateway Serial Number",
 };
 
 /**
- * Record a field install: the project and its sticker (the pole number) —
+ * The Install screen, used by two teams (both the Streetleaf Crew role):
+ *  - Box 1: the project (both teams).
+ *  - Box 2: the warehouse's setup of that project, with internet — create
+ *    it on Leadsun, then register its gateway (scan the gateway serial).
+ *  - Box 3: the field install, shown only once the project has a gateway;
+ *    until then, a note says what's missing (and to Refresh in signal).
+ *
+ * Box 3 records a field install: the project's sticker (the pole number) —
  * from dropdowns that work offline and leave out stickers already
  * submitted — then the solar panel and light head serials (scan or type, in
  * the sticker's order) and the current location (captured automatically,
@@ -43,6 +52,9 @@ export default function InstallScreen() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [sticker, setSticker] = useState<string | null>(null);
   const project = remaining.find((p) => p.id === projectId) ?? null;
+  // Field installs (Box 3) need the warehouse's setup done: a gateway.
+  const readiness = project ? installReadiness(project.setup) : null;
+  const [gatewaySerial, setGatewaySerial] = useState("");
   const { state: location, capture } = useLocationFix({ auto: true });
   const [lightHeadSerial, setLightHeadSerial] = useState("");
   const [solarPanelSerial, setSolarPanelSerial] = useState("");
@@ -118,10 +130,12 @@ export default function InstallScreen() {
         {resultShown ? <Banner tone={resultShown.tone} message={resultShown.message} /> : null}
         <PendingInstalls />
 
-        <View style={styles.card}>
-          <Text style={styles.legend}>
-            <Text style={styles.asterisk}>*</Text> Required
-          </Text>
+        <Text style={styles.legend}>
+          <Text style={styles.asterisk}>*</Text> Required
+        </Text>
+
+        {/* Box 1: the project. */}
+        <View style={styles.card} testID="box-project">
           <SelectField
             label="Project"
             required
@@ -131,6 +145,7 @@ export default function InstallScreen() {
             onChange={(id) => {
               setProjectId(id);
               setSticker(null);
+              setGatewaySerial("");
             }}
             emptyText="No projects have stickers left to install."
             error={errors.projectId}
@@ -147,93 +162,122 @@ export default function InstallScreen() {
               <Text style={styles.link}>{options.loading ? "Refreshing…" : "Refresh"}</Text>
             </Pressable>
           </View>
-          <SelectField
-            label="Sticker / Pole Number"
-            required
-            disabled={!project}
-            placeholder={project ? "Choose a sticker" : "Choose a project first"}
-            options={(project?.stickerNumbers ?? []).map((n) => ({ value: n, label: n }))}
-            value={sticker}
-            onChange={setSticker}
-            emptyText="Every sticker in this project has been submitted."
-            error={errors.poleNumber}
-          />
-
-          {/* Solar panel first: the order the barcodes appear on the sticker. */}
-          <SerialField
-            label="Solar Panel Serial Number"
-            required
-            value={solarPanelSerial}
-            onChangeText={setSolarPanelSerial}
-            onScan={() => setScanning("solarPanelSerial")}
-            error={errors.solarPanelSerial}
-          />
-          <SerialField
-            label="Light Head Serial Number"
-            required
-            value={lightHeadSerial}
-            onChangeText={setLightHeadSerial}
-            onScan={() => setScanning("lightHeadSerial")}
-            error={errors.lightHeadSerial}
-          />
-
-          <View style={styles.location} accessibilityLabel="Location coordinates">
-            <FieldLabel label="Location Coordinates" required />
-            {location.status === "locating" ? (
-              <View style={styles.row}>
-                <ActivityIndicator color={colors.accentStrong} />
-                <Text style={styles.muted}>Finding your location…</Text>
-              </View>
-            ) : fix ? (
-              <>
-                <Text style={styles.coords} selectable>
-                  Latitude {fix.latitude.toFixed(6)}
-                </Text>
-                <Text style={styles.coords} selectable>
-                  Longitude {fix.longitude.toFixed(6)}
-                </Text>
-                <Text style={styles.muted}>
-                  {fix.accuracyMeters != null ? `Accurate to about ${Math.round(fix.accuracyMeters)} m` : "Accuracy unknown"}
-                </Text>
-                {fix.accuracyMeters != null && fix.accuracyMeters > POOR_ACCURACY_METERS ? (
-                  <Text style={styles.warning}>Location is imprecise. Step into the open and refresh.</Text>
-                ) : null}
-              </>
-            ) : location.status === "denied" ? (
-              <>
-                <Text style={styles.warning}>Location access is off. Turn it on to submit — every install needs its location.</Text>
-                <Button label="Open Settings" variant="secondary" onPress={() => void Linking.openSettings()} />
-              </>
-            ) : location.status === "error" ? (
-              <Text style={styles.warning}>{location.message}</Text>
-            ) : null}
-            {/* Getting a location is essential when there isn't one; refreshing is occasional, so it's just a small link. */}
-            {location.status !== "locating" && !fix ? (
-              <Button label="Get location" variant="secondary" onPress={() => void capture()} />
-            ) : null}
-            {location.status !== "locating" && fix ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Refresh location" onPress={() => void capture()} hitSlop={8} style={styles.refresh}>
-                <Text style={styles.link}>Refresh location</Text>
-              </Pressable>
-            ) : null}
-            {errors.location && !fix ? <Text style={styles.error}>{errors.location}</Text> : null}
-          </View>
-
-          <View style={styles.gap}>
-            <TextField
-              label="Notes"
-              value={notes}
-              onChangeText={setNotes}
-              multiline
-              maxLength={INSTALL_NOTES_MAX_LENGTH}
-              placeholder="Anything the office should know"
-              {...notesScroll}
-            />
-            {errors.notes ? <Text style={styles.error}>{errors.notes}</Text> : null}
-          </View>
-
-          <Button label="Submit" loading={saving} onPress={() => void handleSubmit()} />
         </View>
+
+        {/* Box 2: the warehouse's setup of the project (Leadsun project, gateway). */}
+        {project ? (
+          <View style={styles.card} testID="box-setup">
+            <ProjectSetupBox
+              setup={project.setup}
+              gatewaySerial={gatewaySerial}
+              onChangeGatewaySerial={setGatewaySerial}
+              onScanGateway={() => setScanning("gatewaySerial")}
+            />
+          </View>
+        ) : null}
+
+        {/* Box 3: the field install — only once the project has a gateway. */}
+        {project && readiness !== "ready" ? (
+          <View style={styles.card} testID="box-not-ready">
+            <Text style={styles.notReadyTitle}>Not ready for installs yet</Text>
+            <Text style={styles.muted}>
+              {readiness === "needsLeadsunProject"
+                ? "The warehouse needs to set this project up on Leadsun and register its gateway before poles can be installed."
+                : "The warehouse needs to register this project's gateway before poles can be installed."}{" "}
+              If they&apos;ve just done it, tap Refresh above while you have signal.
+            </Text>
+          </View>
+        ) : null}
+        {project && readiness === "ready" ? (
+          <View style={styles.card} testID="box-install">
+            <SelectField
+              label="Sticker / Pole Number"
+              required
+              disabled={!project}
+              placeholder={project ? "Choose a sticker" : "Choose a project first"}
+              options={(project?.stickerNumbers ?? []).map((n) => ({ value: n, label: n }))}
+              value={sticker}
+              onChange={setSticker}
+              emptyText="Every sticker in this project has been submitted."
+              error={errors.poleNumber}
+            />
+
+            {/* Solar panel first: the order the barcodes appear on the sticker. */}
+            <SerialField
+              label="Solar Panel Serial Number"
+              required
+              value={solarPanelSerial}
+              onChangeText={setSolarPanelSerial}
+              onScan={() => setScanning("solarPanelSerial")}
+              error={errors.solarPanelSerial}
+            />
+            <SerialField
+              label="Light Head Serial Number"
+              required
+              value={lightHeadSerial}
+              onChangeText={setLightHeadSerial}
+              onScan={() => setScanning("lightHeadSerial")}
+              error={errors.lightHeadSerial}
+            />
+
+            <View style={styles.location} accessibilityLabel="Location coordinates">
+              <FieldLabel label="Location Coordinates" required />
+              {location.status === "locating" ? (
+                <View style={styles.row}>
+                  <ActivityIndicator color={colors.accentStrong} />
+                  <Text style={styles.muted}>Finding your location…</Text>
+                </View>
+              ) : fix ? (
+                <>
+                  <Text style={styles.coords} selectable>
+                    Latitude {fix.latitude.toFixed(6)}
+                  </Text>
+                  <Text style={styles.coords} selectable>
+                    Longitude {fix.longitude.toFixed(6)}
+                  </Text>
+                  <Text style={styles.muted}>
+                    {fix.accuracyMeters != null ? `Accurate to about ${Math.round(fix.accuracyMeters)} m` : "Accuracy unknown"}
+                  </Text>
+                  {fix.accuracyMeters != null && fix.accuracyMeters > POOR_ACCURACY_METERS ? (
+                    <Text style={styles.warning}>Location is imprecise. Step into the open and refresh.</Text>
+                  ) : null}
+                </>
+              ) : location.status === "denied" ? (
+                <>
+                  <Text style={styles.warning}>Location access is off. Turn it on to submit — every install needs its location.</Text>
+                  <Button label="Open Settings" variant="secondary" onPress={() => void Linking.openSettings()} />
+                </>
+              ) : location.status === "error" ? (
+                <Text style={styles.warning}>{location.message}</Text>
+              ) : null}
+              {/* Getting a location is essential when there isn't one; refreshing is occasional, so it's just a small link. */}
+              {location.status !== "locating" && !fix ? (
+                <Button label="Get location" variant="secondary" onPress={() => void capture()} />
+              ) : null}
+              {location.status !== "locating" && fix ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Refresh location" onPress={() => void capture()} hitSlop={8} style={styles.refresh}>
+                  <Text style={styles.link}>Refresh location</Text>
+                </Pressable>
+              ) : null}
+              {errors.location && !fix ? <Text style={styles.error}>{errors.location}</Text> : null}
+            </View>
+
+            <View style={styles.gap}>
+              <TextField
+                label="Notes"
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                maxLength={INSTALL_NOTES_MAX_LENGTH}
+                placeholder="Anything the office should know"
+                {...notesScroll}
+              />
+              {errors.notes ? <Text style={styles.error}>{errors.notes}</Text> : null}
+            </View>
+
+            <Button label="Submit" loading={saving} onPress={() => void handleSubmit()} />
+          </View>
+        ) : null}
       </ScrollView>
 
       <BarcodeScannerModal
@@ -246,6 +290,7 @@ export default function InstallScreen() {
         onScanned={(value) => {
           if (scanning === "lightHeadSerial") setLightHeadSerial(value);
           if (scanning === "solarPanelSerial") setSolarPanelSerial(value);
+          if (scanning === "gatewaySerial") setGatewaySerial(value);
           setScanning(null);
         }}
       />
@@ -272,6 +317,7 @@ const styles = StyleSheet.create({
   warning: { fontSize: 13, color: colors.statusWarning },
   error: { fontSize: 13, color: colors.statusFlagged },
   legend: { fontSize: 13, color: colors.inkMuted },
+  notReadyTitle: { fontSize: 16, fontWeight: "700", color: colors.ink },
   asterisk: { color: colors.statusFlagged, fontWeight: "700" },
   refresh: { alignSelf: "flex-start", marginTop: 2 },
   listStatus: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm, marginTop: -space.sm },

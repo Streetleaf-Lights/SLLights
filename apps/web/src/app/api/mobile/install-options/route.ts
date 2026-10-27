@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { InstallOptionsResponse } from "@sllights/shared/api-contract";
 import { canUseFieldTools } from "@sllights/shared/auth-role";
 import { isCrewProject } from "@sllights/shared/crew-access";
+import { installSetupFrom } from "@sllights/shared/install-options";
 import { ApimError, getAllProjects, getCustomers } from "@/lib/apim";
 import { requireSession } from "@/lib/require-session";
 
@@ -36,6 +37,9 @@ export async function GET(request: NextRequest) {
           name: p.name,
           customerName: (p.customerId && customerNames.get(p.customerId)) || null,
           stickerNumbers: p.stickerNumbers,
+          // The warehouse's setup (Leadsun project, gateways): field installs
+          // need a gateway. Saved on the phone with the rest, for offline use.
+          setup: installSetupFrom(p.leadsunProject),
         }))
         .sort(
           (a, b) =>

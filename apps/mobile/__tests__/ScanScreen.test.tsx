@@ -78,10 +78,16 @@ async function renderScreen({
   online,
   send,
   getInstallOptions = jest.fn().mockResolvedValue(OPTIONS),
+  project = "Spine Road",
 }: {
   online: boolean;
   send?: jest.Mock;
   getInstallOptions?: jest.Mock;
+  /**
+   * The project a crew member chooses first (the field-install box only
+   * appears once a ready project is chosen); null to leave it unchosen.
+   */
+  project?: string | null;
 }) {
   const ctx = setup(send);
   const api = fakeApi({ getInstallOptions });
@@ -92,6 +98,7 @@ async function renderScreen({
     { wrapper: withSignedInAuth(api) },
   );
   await act(async () => emitConnection(online));
+  if (project) await choose("Project", project);
   return { ...ctx, api };
 }
 
@@ -274,7 +281,7 @@ describe("Install form (Scan tab)", () => {
     await submit();
     expect(screen.getByText("Light Head Serial Number is required.")).toBeTruthy();
     expect(screen.getByText("Solar Panel Serial Number is required.")).toBeTruthy();
-    expect(screen.getByText("Select a project.")).toBeTruthy();
+    // (No "Select a project.": Submit only appears once a project is chosen.)
     expect(screen.getByText("Select a sticker (pole number).")).toBeTruthy();
     expect(send).not.toHaveBeenCalled();
 
@@ -425,11 +432,11 @@ describe("Install form (Scan tab)", () => {
     });
 
     it("lists the projects (with their customer) first, then the chosen project's stickers", async () => {
-      await renderScreen({ online: true });
+      await renderScreen({ online: true, project: null });
       expect(await options("Project")).toEqual(["Spine Road", "Alpha Street"]);
-      // The sticker dropdown waits for a project.
-      const stickerField = screen.getByRole("button", { name: /^Sticker \/ Pole Number: Choose a project first/ });
-      expect(stickerField.props.accessibilityState.disabled).toBe(true);
+      // Until a project is chosen, only Box 1 shows: no setup, no stickers.
+      expect(screen.queryByTestId("box-setup")).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Sticker \/ Pole Number: / })).toBeNull();
       await choose("Project", "Spine Road");
       expect(screen.getByText("Coastal")).toBeTruthy(); // the customer under the chosen project
       expect(await options("Sticker / Pole Number")).toEqual(["CHA-1157", "CHA-1158"]);
@@ -502,9 +509,10 @@ describe("Install form (Scan tab)", () => {
     });
 
     it("explains when there's no list yet and no connection", async () => {
-      await renderScreen({ online: false, getInstallOptions: jest.fn().mockRejectedValue(new Error("No connection.")) });
-      await screen.findByText("Latitude 27.950575"); // let the opening background tasks settle
-      expect(await screen.findByText("Projects couldn't be loaded. Connect to the internet once to download them.")).toBeTruthy();
+      await renderScreen({ online: false, getInstallOptions: jest.fn().mockRejectedValue(new Error("No connection.")), project: null });
+      expect(
+        await screen.findByText("Projects couldn't be loaded. Connect to the internet once to download them.", undefined, { timeout: 3000 }),
+      ).toBeTruthy();
     });
 
     it("saves a fresh list for next time", async () => {
@@ -553,7 +561,7 @@ describe("Install form (Scan tab)", () => {
       await renderScreen({ online: true });
       await screen.findByText("Latitude 27.950575");
       await submit();
-      expect(screen.getByText("Select a project.")).toBeTruthy();
+      expect(screen.getByText("Select a sticker (pole number).")).toBeTruthy();
       expect(mockFormScroll.showTop).toHaveBeenCalledTimes(1);
     });
   });
@@ -570,4 +578,80 @@ describe("Install form (Scan tab)", () => {
     expect(await screen.findByText("Needs attention")).toBeTruthy();
     expect(screen.getByText(/saved on this phone/)).toBeTruthy(); // still something for the crew to deal with
   });
+
+  describe("two teams: the warehouse's setup (Box 2) before field installs (Box 3)", () => {
+    const withSetup = (setup: unknown) =>
+      jest.fn().mockResolvedValue({ ...OPTIONS, projects: OPTIONS.projects.map((p, i) => (i === 0 ? { ...p, setup } : p)) });
+    const NO_LEADSUN = { leadsunProject: false, gateways: [] };
+    const NO_GATEWAY = { leadsunProject: true, gateways: [] };
+    const READY = { leadsunProject: true, gateways: [{ code: "GW-0042", name: "North" }] };
+
+    it("shows '* Required' above the boxes, and the project in a box of its own", async () => {
+      await renderScreen({ online: true, getInstallOptions: withSetup(READY) });
+      const projectBox = within(screen.getByTestId("box-project"));
+      expect(projectBox.queryByText("Required", { exact: false })).toBeNull();
+      expect(screen.getByText("Required", { exact: false })).toBeTruthy();
+      expect(projectBox.getByRole("button", { name: /^Project: / })).toBeTruthy();
+      expect(projectBox.queryByRole("button", { name: /^Sticker \/ Pole Number: / })).toBeNull();
+    });
+
+    it("no Leadsun project yet: offers 'Set up on Leadsun' (not connected yet) and hides the field install", async () => {
+      await renderScreen({ online: true, getInstallOptions: withSetup(NO_LEADSUN) });
+      const setupBox = within(screen.getByTestId("box-setup"));
+      expect(setupBox.getByRole("button", { name: "Set up on Leadsun" }).props.accessibilityState.disabled).toBe(true);
+      expect(setupBox.getByText("Setting up projects on Leadsun from the app isn't available yet.")).toBeTruthy();
+      expect(screen.queryByTestId("box-install")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
+      expect(within(screen.getByTestId("box-not-ready")).getByText(/set this project up on Leadsun and register its gateway/)).toBeTruthy();
+    });
+
+    it("no gateway yet: scan (or type) the gateway serial; registering isn't connected yet; field install hidden", async () => {
+      await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY) });
+      const setupBox = within(screen.getByTestId("box-setup"));
+      await fireEvent.press(setupBox.getByRole("button", { name: "Scan Gateway Serial Number" }));
+      expect(screen.getByText("Scan Gateway Serial Number")).toBeTruthy(); // the scanner's title
+      await read("GW-0099");
+      await fireEvent.press(screen.getByRole("button", { name: "Use this code" }));
+      expect(screen.getByLabelText("Gateway Serial Number: GW-0099")).toBeTruthy();
+      expect(setupBox.getByRole("link", { name: "Won't scan? Type the Gateway Serial Number instead" })).toBeTruthy();
+      expect(setupBox.getByRole("button", { name: "Register gateway" }).props.accessibilityState.disabled).toBe(true);
+      expect(screen.queryByTestId("box-install")).toBeNull();
+      expect(within(screen.getByTestId("box-not-ready")).getByText(/register this project's gateway/)).toBeTruthy();
+      expect(screen.getByText(/tap Refresh above while you have signal/)).toBeTruthy();
+    });
+
+    it("with a gateway: lists it, and the field install can go ahead", async () => {
+      await renderScreen({ online: true, getInstallOptions: withSetup(READY) });
+      expect(within(screen.getByTestId("box-setup")).getByText("North · GW-0042")).toBeTruthy();
+      expect(screen.queryByTestId("box-not-ready")).toBeNull();
+      expect(within(screen.getByTestId("box-install")).getByRole("button", { name: "Submit" })).toBeTruthy();
+    });
+
+    it("works out of signal from the saved list, setup included", async () => {
+      await AsyncStorage.setItem(
+        "streetleaf.installOptions.v1",
+        JSON.stringify({ ...OPTIONS, projects: OPTIONS.projects.map((p, i) => (i === 0 ? { ...p, setup: NO_GATEWAY } : p)) }),
+      );
+      await renderScreen({ online: false, getInstallOptions: jest.fn().mockRejectedValue(new Error("No connection.")) });
+      expect(screen.getByTestId("box-not-ready")).toBeTruthy(); // knows there's no gateway, offline
+      expect(screen.queryByTestId("box-install")).toBeNull();
+    });
+
+    it("clears the gateway serial when switching projects", async () => {
+      await renderScreen({
+        online: true,
+        getInstallOptions: jest.fn().mockResolvedValue({
+          ...OPTIONS,
+          projects: OPTIONS.projects.map((p) => ({ ...p, setup: NO_GATEWAY })),
+        }),
+      });
+      await fireEvent.press(screen.getByRole("button", { name: "Scan Gateway Serial Number" }));
+      await read("GW-0099");
+      await fireEvent.press(screen.getByRole("button", { name: "Use this code" }));
+      await choose("Project", "Alpha Street");
+      expect(screen.queryByLabelText("Gateway Serial Number: GW-0099")).toBeNull();
+      expect(screen.getByRole("button", { name: "Scan Gateway Serial Number" })).toBeTruthy();
+    });
+  });
 });
+

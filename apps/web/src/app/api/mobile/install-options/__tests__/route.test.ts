@@ -46,11 +46,29 @@ describe("GET /api/mobile/install-options", () => {
     const res = await call("Streetleaf Crew");
     expect(res.status).toBe(200);
     const body = await res.json();
+    const noSetup = { leadsunProject: false, gateways: [] };
     expect(body.projects).toEqual([
-      { id: "p4", name: "Alpha Street", customerName: "Babcock Ranch", stickerNumbers: ["BAB-1"] },
-      { id: "p1", name: "Spine Road", customerName: "Coastal", stickerNumbers: ["CHA-1157", "CHA-1158"] },
+      { id: "p4", name: "Alpha Street", customerName: "Babcock Ranch", stickerNumbers: ["BAB-1"], setup: noSetup },
+      { id: "p1", name: "Spine Road", customerName: "Coastal", stickerNumbers: ["CHA-1157", "CHA-1158"], setup: noSetup },
     ]);
     expect(Number.isNaN(Date.parse(body.generatedAt))).toBe(false);
+  });
+
+  it("includes each project's setup: its Leadsun project and gateways", async () => {
+    allProjects.mockResolvedValue([
+      {
+        ...project("p1", "Spine Road", "c2", ["CHA-1157"]),
+        leadsunProject: {
+          ProjectId: "LS-1",
+          ProjectName: "Spine Road",
+          totalGateways: 1,
+          totalPoles: 0,
+          groups: [{ GroupId: 1, GroupName: "North", GatewayCode: "GW-0042", totalPoles: 0, products: [] }],
+        },
+      },
+    ]);
+    const body = await (await call("Streetleaf Crew")).json();
+    expect(body.projects[0].setup).toEqual({ leadsunProject: true, gateways: [{ code: "GW-0042", name: "North" }] });
   });
 
   it("is available to Streetleaf Admins too (they have the Install tab)", async () => {
