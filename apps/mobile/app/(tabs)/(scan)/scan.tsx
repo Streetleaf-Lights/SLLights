@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Crypto from "expo-crypto";
 import { installReadiness, remainingInstallOptions, stickerKey } from "@sllights/shared/install-options";
 import {
@@ -20,6 +20,8 @@ import { Button } from "@/ui/Button";
 import { SelectField } from "@/ui/SelectField";
 import { FieldLabel, TextField } from "@/ui/TextField";
 import { colors, radius, space } from "@/ui/theme";
+import { useAuth } from "@/auth/AuthProvider";
+import { ApiError } from "@/api/client";
 
 type ScanTarget = "lightHeadSerial" | "solarPanelSerial" | "gatewaySerial";
 const SCAN_TITLES: Record<ScanTarget, string> = {
@@ -45,7 +47,9 @@ const SCAN_TITLES: Record<ScanTarget, string> = {
  * signal and nothing is lost.
  */
 export default function InstallScreen() {
-  const { submit, submittedStickers, items } = useInstallQueue();
+  const { submit, submittedStickers, items, online } = useInstallQueue();
+  const { api } = useAuth();
+  const [settingUp, setSettingUp] = useState(false);
   const options = useInstallOptions();
   // Projects and stickers not yet submitted from this phone (a project with none left drops out).
   const remaining = remainingInstallOptions(options.projects, submittedStickers);
@@ -73,6 +77,33 @@ export default function InstallScreen() {
 
   // Notes scrolls into view above the keyboard; after Submit, back to the top.
   const { scrollRef, bottomFieldProps: notesScroll, showTop } = useFormScroll();
+
+  // Step 1 (warehouse): "Set up project" — once per project, so ask first.
+  function confirmSetUp(id: string, name: string) {
+    Alert.alert(`Set up ${name}?`, "This prepares the project for installs. It only needs doing once.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Set up", onPress: () => void setUpProject(id) },
+    ]);
+  }
+
+  async function setUpProject(id: string) {
+    setSettingUp(true);
+    try {
+      await api.setupInstallProject(id);
+      await options.markSetUp(id); // Step 2 appears straight away…
+      void options.refresh(); // …and the list catches up from the server.
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // Someone else set it up already: just catch up.
+        await options.markSetUp(id);
+        void options.refresh();
+      } else {
+        Alert.alert("Couldn't set up the project", err instanceof Error ? err.message : "Please try again.");
+      }
+    } finally {
+      setSettingUp(false);
+    }
+  }
 
   async function handleSubmit() {
     setResult(null);
@@ -172,6 +203,9 @@ export default function InstallScreen() {
               gatewaySerial={gatewaySerial}
               onChangeGatewaySerial={setGatewaySerial}
               onScanGateway={() => setScanning("gatewaySerial")}
+              online={online}
+              settingUp={settingUp}
+              onSetUp={() => confirmSetUp(project.id, project.name)}
             />
           </View>
         ) : null}
@@ -182,7 +216,7 @@ export default function InstallScreen() {
             <Text style={styles.notReadyTitle}>Not ready for installs yet</Text>
             <Text style={styles.muted}>
               {readiness === "needsLeadsunProject"
-                ? "The warehouse needs to set this project up on Leadsun and register its gateway before poles can be installed."
+                ? "The warehouse needs to set up this project and register its gateway before poles can be installed."
                 : "The warehouse needs to register this project's gateway before poles can be installed."}{" "}
               If they&apos;ve just done it, tap Refresh above while you have signal.
             </Text>

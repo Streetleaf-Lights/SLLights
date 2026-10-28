@@ -282,7 +282,7 @@ export async function getProjectsForCustomer(
 ): Promise<Project[]> {
   const raw = await apimFetch<RawProject[]>(
     `/getProjects?customerId=${encodeURIComponent(customerId)}`,
-    { token },
+    { token, tags: ["projects"] },
   );
   return raw.map(normalizeProject);
 }
@@ -295,7 +295,7 @@ export async function getProjectsForCustomer(
  * returns every project.
  */
 export async function getAllProjects(token?: string | null): Promise<Project[]> {
-  const raw = await apimFetch<RawProject[]>("/getProjects", { token });
+  const raw = await apimFetch<RawProject[]>("/getProjects", { token, tags: ["projects"] });
   return raw.map(normalizeProject);
 }
 
@@ -975,5 +975,42 @@ export async function createPoleIssue(input: CreatePoleIssueInput, token: string
       res.status,
     );
   }
+}
+
+/**
+ * POST /populateLeadsunProject — the warehouse's "Set up project": creates the
+ * project on Leadsun (Step 1 of the Install screen). Answers 201 with the new
+ * Leadsun project id. Creates a new Leadsun project on every call, so callers
+ * must only use it for a project that doesn't have one yet.
+ */
+export async function populateLeadsunProject(
+  input: { projectId: string; projectName: string; remark: string },
+  token: string,
+): Promise<{ leadsunProjectId: string }> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+  const res = await fetch(`${APIM_BASE_URL}/populateLeadsunProject`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ ProjectId: input.projectId, ProjectName: input.projectName, remark: input.remark }),
+    cache: "no-store",
+  });
+  const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!res.ok) {
+    const detail = [body?.error, body?.message, body?.title].find((v) => typeof v === "string" && v.trim()) as string | undefined;
+    console.error(`populateLeadsunProject: APIM returned ${res.status}${detail ? ` — ${detail}` : ""}`);
+    throw new ApimError(detail ?? `Couldn't set up the project (${res.status}).`, res.status);
+  }
+  const leadsun = body?.leadsunProject as { ProjectId?: unknown } | undefined;
+  const leadsunProjectId = leadsun?.ProjectId;
+  if (typeof leadsunProjectId !== "string" && typeof leadsunProjectId !== "number") {
+    throw new ApimError("APIM didn't return the new project's id.", 502);
+  }
+  return { leadsunProjectId: String(leadsunProjectId) };
 }
 

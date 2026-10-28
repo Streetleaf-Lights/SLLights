@@ -10,20 +10,29 @@ import { SerialField } from "./SerialField";
  * (1) create the project on Leadsun, then (2) register a gateway by its
  * serial number. Once a gateway exists, this lists the project's gateways.
  *
- * The two actions aren't connected yet (their Leadsun details are still to
- * come): the buttons are shown but switched off, with a plain note, rather
- * than pretending to work.
+ * "Set up project" calls the server (populateLeadsunProject). Registering a
+ * gateway isn't connected yet: its button is shown but switched off, with a
+ * plain note, rather than pretending to work. The screen never names Leadsun (the vendor
+ * behind it): people see "set up this project" and "gateway".
  */
 export function ProjectSetupBox({
   setup,
   gatewaySerial,
   onChangeGatewaySerial,
   onScanGateway,
+  online,
+  settingUp,
+  onSetUp,
 }: {
   setup: InstallProjectSetup | undefined;
   gatewaySerial: string;
   onChangeGatewaySerial: (text: string) => void;
   onScanGateway: () => void;
+  /** Setting up needs the internet (the warehouse has it). */
+  online: boolean;
+  /** True while "Set up project" is working. */
+  settingUp: boolean;
+  onSetUp: () => void;
 }) {
   const readiness = installReadiness(setup);
 
@@ -35,13 +44,13 @@ export function ProjectSetupBox({
 
       {readiness === "needsLeadsunProject" ? (
         <>
-          <Text style={type.small}>Step 1 (warehouse): create this project on Leadsun.</Text>
-          <Button label="Set up on Leadsun" disabled onPress={() => undefined} />
-          <Text style={styles.note}>Setting up projects on Leadsun from the app isn&apos;t available yet.</Text>
+          <Text style={type.small}>Step 1 (warehouse)</Text>
+          <Button label="Set up project" loading={settingUp} disabled={!online} onPress={onSetUp} />
+          {!online ? <Text style={styles.note}>Setting up a project needs an internet connection.</Text> : null}
         </>
       ) : readiness === "needsGateway" ? (
         <>
-          <Text style={type.small}>Step 2 (warehouse): register this project&apos;s gateway.</Text>
+          <Text style={type.small}>Step 2 (warehouse)</Text>
           <SerialField
             label="Gateway Serial Number"
             required

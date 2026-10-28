@@ -33,6 +33,8 @@ export const MOBILE_API = {
   account: "/api/mobile/account",
   installOptions: "/api/mobile/install-options",
   installs: "/api/mobile/installs",
+  /** POST { projectId }: the warehouse's "Set up project" (Install screen, Step 1). */
+  installProjectSetup: "/api/mobile/install-setup/project",
   poleInstall: "/api/mobile/poleinstall",
   createPoleIssue: "/api/createpoleissue",
 } as const;

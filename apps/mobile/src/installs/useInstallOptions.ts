@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { InstallOptionsResponse } from "@sllights/shared/api-contract";
 import { useAuth } from "@/auth/AuthProvider";
@@ -40,15 +40,31 @@ export function useInstallOptions() {
     error: null,
   });
 
+  // Projects set up from this phone, until the server's list confirms it: a
+  // refresh that arrives before the backend catches up mustn't flip the
+  // screen back to Step 1 (and tempt a second set-up).
+  const setUpHere = useRef(new Set<string>());
+  const keepSetUp = useCallback((projects: InstallOptionsResponse["projects"]) => {
+    return projects.map((p) => {
+      if (!setUpHere.current.has(p.id)) return p;
+      if (p.setup?.leadsunProject) {
+        setUpHere.current.delete(p.id); // confirmed by the server
+        return p;
+      }
+      return { ...p, setup: { leadsunProject: true, gateways: p.setup?.gateways ?? [] } };
+    });
+  }, []);
+
   const fetchFresh = useCallback(async (): Promise<Partial<InstallOptionsState>> => {
     try {
-      const fresh = await api.getInstallOptions();
+      const fetched = await api.getInstallOptions();
+      const fresh = { ...fetched, projects: keepSetUp(fetched.projects) };
       await AsyncStorage.setItem(KEY, JSON.stringify(fresh)).catch(() => undefined);
       return { projects: fresh.projects, updatedAt: fresh.generatedAt, source: "live", loading: false, error: null };
     } catch (err) {
       return { loading: false, error: err instanceof Error ? err.message : "Couldn't update the project list." };
     }
-  }, [api]);
+  }, [api, keepSetUp]);
 
   // Saved copy first (instant, works offline), then a fresh one if reachable.
   useEffect(() => {
@@ -71,5 +87,23 @@ export function useInstallOptions() {
     setState((s) => ({ ...s, ...update }));
   }, [fetchFresh]);
 
-  return { ...state, refresh };
+  /**
+   * After the warehouse sets a project up: mark it so here (and in the copy
+   * saved on the phone) straight away, so Step 2 appears without waiting for
+   * the refresh that follows.
+   */
+  const markSetUp = useCallback(
+    async (projectId: string) => {
+      setUpHere.current.add(projectId);
+      const mark = (projects: InstallOptionsResponse["projects"]) =>
+        projects.map((p) => (p.id === projectId ? { ...p, setup: { leadsunProject: true, gateways: p.setup?.gateways ?? [] } } : p));
+      setState((s) => ({ ...s, projects: mark(s.projects) }));
+      // The copy saved on the phone, so it's right offline too.
+      const saved = await readSaved();
+      if (saved) await AsyncStorage.setItem(KEY, JSON.stringify({ ...saved, projects: mark(saved.projects) })).catch(() => undefined);
+    },
+    [],
+  );
+
+  return { ...state, refresh, markSetUp };
 }

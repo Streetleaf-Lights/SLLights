@@ -7,6 +7,7 @@ import { InstallQueueProvider } from "@/installs/InstallQueueProvider";
 import { createInstallQueue, type QueueItem, type SendResult } from "@/installs/queue";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { sessionStore } from "@/auth/sessionStore";
+import { ApiError } from "@/api/client";
 import { fakeApi, futureExp, makeToken, withSignedInAuth } from "../test-utils/helpers";
 
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
@@ -595,19 +596,106 @@ describe("Install form (Scan tab)", () => {
       expect(projectBox.queryByRole("button", { name: /^Sticker \/ Pole Number: / })).toBeNull();
     });
 
-    it("no Leadsun project yet: offers 'Set up on Leadsun' (not connected yet) and hides the field install", async () => {
+    it("not set up yet: offers 'Set up project' and hides the field install", async () => {
       await renderScreen({ online: true, getInstallOptions: withSetup(NO_LEADSUN) });
       const setupBox = within(screen.getByTestId("box-setup"));
-      expect(setupBox.getByRole("button", { name: "Set up on Leadsun" }).props.accessibilityState.disabled).toBe(true);
-      expect(setupBox.getByText("Setting up projects on Leadsun from the app isn't available yet.")).toBeTruthy();
+      expect(setupBox.getByText("Step 1 (warehouse)")).toBeTruthy(); // the button says what to do
+      expect(setupBox.getByRole("button", { name: "Set up project" }).props.accessibilityState.disabled).toBe(false);
       expect(screen.queryByTestId("box-install")).toBeNull();
       expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
-      expect(within(screen.getByTestId("box-not-ready")).getByText(/set this project up on Leadsun and register its gateway/)).toBeTruthy();
+      expect(within(screen.getByTestId("box-not-ready")).getByText(/set up this project and register its gateway/)).toBeTruthy();
+    });
+
+    describe("Set up project", () => {
+      const pressSetUp = async () => {
+        await fireEvent.press(within(screen.getByTestId("box-setup")).getByRole("button", { name: "Set up project" }));
+      };
+      const alertButton = async (alert: jest.SpyInstance, text: string) => {
+        const buttons = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => unknown }[];
+        await act(async () => {
+          await buttons.find((b) => b.text === text)?.onPress?.();
+        });
+      };
+      afterEach(() => jest.restoreAllMocks());
+
+      it("asks first, sets the project up, and moves straight to Step 2 (saved on the phone too)", async () => {
+        const alert = jest.spyOn(Alert, "alert");
+        const getInstallOptions = withSetup(NO_LEADSUN);
+        const { api } = await renderScreen({ online: true, getInstallOptions });
+        await pressSetUp();
+        expect(alert).toHaveBeenCalledWith("Set up Spine Road?", expect.stringContaining("only needs doing once"), expect.any(Array));
+        expect(api.setupInstallProject).not.toHaveBeenCalled(); // nothing until confirmed
+
+        await alertButton(alert, "Set up");
+        expect(api.setupInstallProject).toHaveBeenCalledWith("p1");
+        expect(await within(screen.getByTestId("box-setup")).findByText("Step 2 (warehouse)")).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Scan Gateway Serial Number" })).toBeTruthy();
+        await waitFor(() => expect(getInstallOptions).toHaveBeenCalledTimes(2)); // refreshed from the server…
+        // …which here still says "not set up" (the backend catching up): Step 2 stays.
+        expect(screen.getByText("Step 2 (warehouse)")).toBeTruthy();
+        const saved = JSON.parse((await AsyncStorage.getItem("streetleaf.installOptions.v1")) ?? "null");
+        expect(saved.projects.find((p: { id: string }) => p.id === "p1").setup.leadsunProject).toBe(true);
+      });
+
+      it("follows the server once it confirms (gateways included)", async () => {
+        const alert = jest.spyOn(Alert, "alert");
+        const getInstallOptions = jest
+          .fn()
+          .mockResolvedValueOnce({ ...OPTIONS, projects: OPTIONS.projects.map((p, i) => (i === 0 ? { ...p, setup: NO_LEADSUN } : p)) })
+          .mockResolvedValue({ ...OPTIONS, projects: OPTIONS.projects.map((p, i) => (i === 0 ? { ...p, setup: READY } : p)) });
+        await renderScreen({ online: true, getInstallOptions });
+        await fireEvent.press(within(screen.getByTestId("box-setup")).getByRole("button", { name: "Set up project" }));
+        await alertButton(alert, "Set up");
+        // The refreshed list (with a gateway, say) is shown as the server sends it.
+        expect(await within(screen.getByTestId("box-setup")).findByText("North · GW-0042")).toBeTruthy();
+        expect(screen.getByTestId("box-install")).toBeTruthy();
+      });
+
+      it("does nothing if cancelled", async () => {
+        const alert = jest.spyOn(Alert, "alert");
+        const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_LEADSUN) });
+        await pressSetUp();
+        await alertButton(alert, "Cancel");
+        expect(api.setupInstallProject).not.toHaveBeenCalled();
+        expect(screen.getByText("Step 1 (warehouse)")).toBeTruthy();
+      });
+
+      it("needs the internet: switched off, saying why, when offline", async () => {
+        await AsyncStorage.setItem(
+          "streetleaf.installOptions.v1",
+          JSON.stringify({ ...OPTIONS, projects: OPTIONS.projects.map((p, i) => (i === 0 ? { ...p, setup: NO_LEADSUN } : p)) }),
+        );
+        await renderScreen({ online: false, getInstallOptions: jest.fn().mockRejectedValue(new Error("No connection.")) });
+        const setupBox = within(screen.getByTestId("box-setup"));
+        expect(setupBox.getByRole("button", { name: "Set up project" }).props.accessibilityState.disabled).toBe(true);
+        expect(setupBox.getByText("Setting up a project needs an internet connection.")).toBeTruthy();
+      });
+
+      it("treats 'already set up' (someone else did it) as done, without an error", async () => {
+        const alert = jest.spyOn(Alert, "alert");
+        const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_LEADSUN) });
+        (api.setupInstallProject as jest.Mock).mockRejectedValueOnce(new ApiError("This project is already set up.", 409));
+        await pressSetUp();
+        await alertButton(alert, "Set up");
+        expect(await screen.findByText("Step 2 (warehouse)")).toBeTruthy();
+        expect(alert).toHaveBeenCalledTimes(1); // only the confirmation, no error
+      });
+
+      it("shows why if it fails, staying on Step 1", async () => {
+        const alert = jest.spyOn(Alert, "alert");
+        const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_LEADSUN) });
+        (api.setupInstallProject as jest.Mock).mockRejectedValueOnce(new ApiError("Project name already exists", 400));
+        await pressSetUp();
+        await alertButton(alert, "Set up");
+        await waitFor(() => expect(alert).toHaveBeenLastCalledWith("Couldn't set up the project", "Project name already exists"));
+        expect(screen.getByText("Step 1 (warehouse)")).toBeTruthy();
+      });
     });
 
     it("no gateway yet: scan (or type) the gateway serial; registering isn't connected yet; field install hidden", async () => {
       await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY) });
       const setupBox = within(screen.getByTestId("box-setup"));
+      expect(setupBox.getByText("Step 2 (warehouse)")).toBeTruthy(); // the field and button say what to do
       await fireEvent.press(setupBox.getByRole("button", { name: "Scan Gateway Serial Number" }));
       expect(screen.getByText("Scan Gateway Serial Number")).toBeTruthy(); // the scanner's title
       await read("GW-0099");
@@ -637,6 +725,15 @@ describe("Install form (Scan tab)", () => {
       expect(screen.queryByTestId("box-install")).toBeNull();
     });
 
+    it.each([
+      ["not set up", NO_LEADSUN],
+      ["no gateway", NO_GATEWAY],
+      ["ready", READY],
+    ])("never mentions Leadsun on screen (%s)", async (_state, setup) => {
+      await renderScreen({ online: true, getInstallOptions: withSetup(setup) });
+      expect(JSON.stringify(screen.toJSON())).not.toMatch(/leadsun/i);
+    });
+
     it("clears the gateway serial when switching projects", async () => {
       await renderScreen({
         online: true,
@@ -654,4 +751,3 @@ describe("Install form (Scan tab)", () => {
     });
   });
 });
-

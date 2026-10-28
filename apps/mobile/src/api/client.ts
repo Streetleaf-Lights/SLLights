@@ -296,6 +296,15 @@ export function createApiClient({
       return request<InstallOptionsResponse>(MOBILE_API.installOptions, { method: "GET", auth: true });
     },
 
+    /** The warehouse's "Set up project" (Install screen, Step 1). */
+    setupInstallProject(projectId: string) {
+      return request<{ projectId: string; leadsunProjectId: string }>(MOBILE_API.installProjectSetup, {
+        method: "POST",
+        body: { projectId },
+        auth: true,
+      });
+    },
+
     /** Records a field install (sent from the offline queue). */
     submitInstall(install: InstallSubmission) {
       return request<InstallResponse>(MOBILE_API.installs, { method: "POST", body: install, auth: true });
