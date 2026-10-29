@@ -50,6 +50,7 @@ export default function InstallScreen() {
   const { submit, submittedStickers, items, online } = useInstallQueue();
   const { api } = useAuth();
   const [settingUp, setSettingUp] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const options = useInstallOptions();
   // Projects and stickers not yet submitted from this phone (a project with none left drops out).
   const remaining = remainingInstallOptions(options.projects, submittedStickers);
@@ -102,6 +103,32 @@ export default function InstallScreen() {
       }
     } finally {
       setSettingUp(false);
+    }
+  }
+
+  // Step 2 (warehouse): "Register gateway" — once per gateway pole, so ask first.
+  function confirmRegister(id: string, poleNumber: string, serial: string) {
+    Alert.alert(`Register gateway ${serial}?`, `It will be registered for gateway pole ${poleNumber}.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Register", onPress: () => void registerGateway(id, poleNumber, serial) },
+    ]);
+  }
+
+  async function registerGateway(id: string, poleNumber: string, serial: string) {
+    setRegistering(true);
+    try {
+      const res = await api.registerGateway({ projectId: id, poleNumber, gatewaySerial: serial });
+      setGatewaySerial("");
+      await options.markSetUp(id, res.gateways); // Box 3 opens straight away…
+      void options.refresh(); // …and the list catches up from the server.
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // Already registered (or the project changed): catch up from the server.
+        void options.refresh();
+      }
+      Alert.alert("Couldn't register the gateway", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setRegistering(false);
     }
   }
 
@@ -199,6 +226,7 @@ export default function InstallScreen() {
         {project ? (
           <View style={styles.card} testID="box-setup">
             <ProjectSetupBox
+              projectId={project.id}
               setup={project.setup}
               gatewaySerial={gatewaySerial}
               onChangeGatewaySerial={setGatewaySerial}
@@ -206,6 +234,8 @@ export default function InstallScreen() {
               online={online}
               settingUp={settingUp}
               onSetUp={() => confirmSetUp(project.id, project.name)}
+              registering={registering}
+              onRegister={(pole) => confirmRegister(project.id, pole, gatewaySerial.trim())}
             />
           </View>
         ) : null}

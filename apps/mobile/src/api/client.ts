@@ -21,6 +21,8 @@ import {
   type InviteUserResponse,
   type InstallOptionsResponse,
   type InstallResponse,
+  type GatewayPolesResponse,
+  type RegisterGatewayResponse,
   type UsersResponse,
   type PoleVitalsResponse,
   type ProjectDetailResponse,
@@ -303,6 +305,19 @@ export function createApiClient({
         body: { projectId },
         auth: true,
       });
+    },
+
+    /** The project's gateway poles (Install screen, Step 2). */
+    getGatewayPoles(projectId: string) {
+      return request<GatewayPolesResponse>(`${MOBILE_API.installGatewayPoles}?projectId=${encodeURIComponent(projectId)}`, {
+        method: "GET",
+        auth: true,
+      });
+    },
+
+    /** The warehouse's "Register gateway" (Install screen, Step 2). */
+    registerGateway(body: { projectId: string; poleNumber: string; gatewaySerial: string }) {
+      return request<RegisterGatewayResponse>(MOBILE_API.installGatewaySetup, { method: "POST", body, auth: true });
     },
 
     /** Records a field install (sent from the offline queue). */

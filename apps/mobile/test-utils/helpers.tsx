@@ -33,6 +33,10 @@ export function fakeApi(overrides: Partial<Record<keyof ApiClient, jest.Mock>> =
     getProjectRemote: jest.fn().mockResolvedValue({ remote: null }),
     listUsers: jest.fn().mockResolvedValue({ users: [] }),
     deleteMyAccount: jest.fn().mockResolvedValue({ success: true }),
+    getGatewayPoles: jest.fn().mockResolvedValue({ poles: [{ poleNumber: "TESTSL1-1001", registered: false }] }),
+    registerGateway: jest
+      .fn()
+      .mockResolvedValue({ projectId: "p1", gateways: [{ code: "GT12L94A24072662", name: "TESTSL1-1001 Spine Road" }] }),
     setupInstallProject: jest.fn().mockResolvedValue({ projectId: "p1", leadsunProjectId: "748" }),
     submitInstall: jest.fn().mockResolvedValue({ success: true, recordId: "recNEW", alreadyRecorded: false }),
     getInstallOptions: jest.fn().mockResolvedValue({ generatedAt: "2026-10-12T12:00:00.000Z", projects: [] }),

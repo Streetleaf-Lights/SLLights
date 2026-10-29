@@ -35,6 +35,10 @@ export const MOBILE_API = {
   installs: "/api/mobile/installs",
   /** POST { projectId }: the warehouse's "Set up project" (Install screen, Step 1). */
   installProjectSetup: "/api/mobile/install-setup/project",
+  /** GET ?projectId=: the project's gateway poles (Install screen, Step 2). */
+  installGatewayPoles: "/api/mobile/install-setup/gateway-poles",
+  /** POST { projectId, poleNumber, gatewaySerial }: the warehouse's "Register gateway" (Step 2). */
+  installGatewaySetup: "/api/mobile/install-setup/gateway",
   poleInstall: "/api/mobile/poleinstall",
   createPoleIssue: "/api/createpoleissue",
 } as const;
@@ -272,6 +276,17 @@ export interface InstallOptionsResponse {
     /** The warehouse's setup (Leadsun project, gateways); absent in lists saved before it existed. */
     setup?: InstallProjectSetup;
   }[];
+}
+
+/** The project's gateway poles (isGateway), and whether each has its gateway registered. */
+export interface GatewayPolesResponse {
+  poles: { poleNumber: string; registered: boolean }[];
+}
+
+/** "Register gateway" succeeded: the project's gateways now. */
+export interface RegisterGatewayResponse {
+  projectId: string;
+  gateways: { code: string; name: string }[];
 }
 
 /**

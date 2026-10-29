@@ -59,3 +59,20 @@ describe("install setup (the warehouse's steps)", () => {
     expect(installReadiness(undefined)).toBe("ready");
   });
 });
+
+import { gatewayGroupName, isGatewayPoleRegistered } from "../install-options";
+
+describe("gateway registration rules", () => {
+  it("names a gateway's group after its gateway pole, then the project", () => {
+    expect(gatewayGroupName(" TESTSL1-1001 ", " Streetleaf - SL1 Test ")).toBe("TESTSL1-1001 Streetleaf - SL1 Test");
+  });
+
+  it("knows a gateway pole is registered when a group is named after it", () => {
+    const gateways = [{ name: "TESTSL1-1001 Streetleaf - SL1 Test" }, { name: "PAS-7" }];
+    expect(isGatewayPoleRegistered("testsl1-1001", gateways)).toBe(true);
+    expect(isGatewayPoleRegistered("PAS-7", gateways)).toBe(true);
+    // Not fooled by a pole number that merely starts the same way.
+    expect(isGatewayPoleRegistered("TESTSL1-100", gateways)).toBe(false);
+    expect(isGatewayPoleRegistered("TESTSL1-1002", gateways)).toBe(false);
+  });
+});

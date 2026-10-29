@@ -54,3 +54,26 @@ export function installReadiness(setup: InstallProjectSetup | undefined): Instal
   if (!setup.leadsunProject) return "needsLeadsunProject";
   return setup.gateways.length > 0 ? "ready" : "needsGateway";
 }
+
+/**
+ * A gateway's Leadsun group name: the gateway pole's number, then the
+ * project's name — "TESTSL1-1001 Spine Road".
+ */
+export function gatewayGroupName(poleNumber: string, projectName: string): string {
+  return `${poleNumber.trim()} ${projectName.trim()}`;
+}
+
+/**
+ * Whether a gateway pole already has its gateway registered: a gateway whose
+ * group name is that pole number (followed by the project name, or alone).
+ */
+export function isGatewayPoleRegistered(poleNumber: string, gateways: readonly { name: string }[]): boolean {
+  const pole = poleNumber.trim().toUpperCase();
+  return gateways.some((g) => {
+    const name = g.name.trim().toUpperCase();
+    return name === pole || name.startsWith(`${pole} `);
+  });
+}
+
+/** The longest gateway serial number accepted (a guard against junk, not a format rule). */
+export const GATEWAY_SERIAL_MAX_LENGTH = 64;

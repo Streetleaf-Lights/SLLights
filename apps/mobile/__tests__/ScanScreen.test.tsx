@@ -692,7 +692,7 @@ describe("Install form (Scan tab)", () => {
       });
     });
 
-    it("no gateway yet: scan (or type) the gateway serial; registering isn't connected yet; field install hidden", async () => {
+    it("no gateway yet: scan (or type) the gateway serial; field install hidden", async () => {
       await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY) });
       const setupBox = within(screen.getByTestId("box-setup"));
       expect(setupBox.getByText("Step 2 (warehouse)")).toBeTruthy(); // the field and button say what to do
@@ -702,10 +702,117 @@ describe("Install form (Scan tab)", () => {
       await fireEvent.press(screen.getByRole("button", { name: "Use this code" }));
       expect(screen.getByLabelText("Gateway Serial Number: GW-0099")).toBeTruthy();
       expect(setupBox.getByRole("link", { name: "Won't scan? Type the Gateway Serial Number instead" })).toBeTruthy();
-      expect(setupBox.getByRole("button", { name: "Register gateway" }).props.accessibilityState.disabled).toBe(true);
+      expect(await setupBox.findByText("Gateway pole: TESTSL1-1001")).toBeTruthy();
+      // A serial and the gateway pole: ready to register.
+      expect(setupBox.getByRole("button", { name: "Register gateway" }).props.accessibilityState.disabled).toBe(false);
       expect(screen.queryByTestId("box-install")).toBeNull();
       expect(within(screen.getByTestId("box-not-ready")).getByText(/register this project's gateway/)).toBeTruthy();
       expect(screen.getByText(/tap Refresh above while you have signal/)).toBeTruthy();
+    });
+
+    describe("Register gateway", () => {
+      const alertButton = async (alert: jest.SpyInstance, text: string) => {
+        const buttons = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => unknown }[];
+        await act(async () => {
+          await buttons.find((b) => b.text === text)?.onPress?.();
+        });
+      };
+      const registerButton = () => within(screen.getByTestId("box-setup")).getByRole("button", { name: "Register gateway" });
+      const typeGateway = async (serial: string) => {
+        await fireEvent.press(screen.getByRole("link", { name: "Won't scan? Type the Gateway Serial Number instead" }));
+        await fireEvent.changeText(screen.getByLabelText("Gateway Serial Number"), serial);
+      };
+      afterEach(() => jest.restoreAllMocks());
+
+      it("one gateway pole: asks first, registers it, and opens the field install", async () => {
+        const alert = jest.spyOn(Alert, "alert");
+        const getInstallOptions = withSetup(NO_GATEWAY);
+        const { api } = await renderScreen({ online: true, getInstallOptions });
+        expect(await screen.findByText("Gateway pole: TESTSL1-1001")).toBeTruthy();
+        expect(registerButton().props.accessibilityState.disabled).toBe(true); // no serial yet
+        await typeGateway(" AEXSAM2324070259 ");
+        expect(registerButton().props.accessibilityState.disabled).toBe(false);
+
+        await fireEvent.press(registerButton());
+        expect(alert).toHaveBeenCalledWith(
+          "Register gateway AEXSAM2324070259?",
+          "It will be registered for gateway pole TESTSL1-1001.",
+          expect.any(Array),
+        );
+        expect(api.registerGateway).not.toHaveBeenCalled(); // nothing until confirmed
+        await alertButton(alert, "Register");
+        expect(api.registerGateway).toHaveBeenCalledWith({ projectId: "p1", poleNumber: "TESTSL1-1001", gatewaySerial: "AEXSAM2324070259" });
+        // Straight on to the field install, listing the new gateway — even before the server's list catches up.
+        expect(await screen.findByTestId("box-install")).toBeTruthy();
+        expect(within(screen.getByTestId("box-setup")).getByText("TESTSL1-1001 Spine Road · GT12L94A24072662")).toBeTruthy();
+        await waitFor(() => expect(getInstallOptions).toHaveBeenCalledTimes(2));
+        expect(screen.getByTestId("box-install")).toBeTruthy();
+      });
+
+      it("several gateway poles: choose one of those without a gateway", async () => {
+        const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY) });
+        (api.getGatewayPoles as jest.Mock).mockResolvedValue({
+          poles: [
+            { poleNumber: "GW-A", registered: true },
+            { poleNumber: "GW-B", registered: false },
+            { poleNumber: "GW-C", registered: false },
+          ],
+        });
+        // Re-choose the project so the box asks again with these poles.
+        await choose("Project", "Alpha Street");
+        await choose("Project", "Spine Road");
+        await typeGateway("SER-1");
+        expect(registerButton().props.accessibilityState.disabled).toBe(true); // no pole chosen
+        await fireEvent.press(await screen.findByRole("button", { name: /^Gateway Pole: / }));
+        const offered = screen.getAllByRole("button", { name: /^Choose / }).map((b) => b.props.accessibilityLabel);
+        expect(offered).toEqual(["Choose GW-B", "Choose GW-C"]); // GW-A already has one
+        await fireEvent.press(screen.getByRole("button", { name: "Choose GW-C" }));
+        expect(registerButton().props.accessibilityState.disabled).toBe(false);
+      });
+
+      it("no gateway pole marked yet: says so, and can't register", async () => {
+        const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY), project: null });
+        (api.getGatewayPoles as jest.Mock).mockResolvedValue({ poles: [] });
+        await choose("Project", "Spine Road");
+        expect(await screen.findByText("No pole in this project is marked as a gateway pole yet.")).toBeTruthy();
+        await typeGateway("SER-1");
+        expect(registerButton().props.accessibilityState.disabled).toBe(true);
+      });
+
+      it("needs the internet", async () => {
+        await AsyncStorage.setItem(
+          "streetleaf.installOptions.v1",
+          JSON.stringify({ ...OPTIONS, projects: OPTIONS.projects.map((p, i) => (i === 0 ? { ...p, setup: NO_GATEWAY } : p)) }),
+        );
+        const { api } = await renderScreen({ online: false, getInstallOptions: jest.fn().mockRejectedValue(new Error("No connection.")) });
+        expect(screen.getByText("Registering a gateway needs an internet connection.")).toBeTruthy();
+        expect(registerButton().props.accessibilityState.disabled).toBe(true);
+        expect(api.getGatewayPoles).not.toHaveBeenCalled();
+      });
+
+      it("offers to try again if the gateway poles can't be loaded", async () => {
+        const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY), project: null });
+        (api.getGatewayPoles as jest.Mock)
+          .mockRejectedValueOnce(new ApiError("APIM is busy.", 503))
+          .mockResolvedValue({ poles: [{ poleNumber: "TESTSL1-1001", registered: false }] });
+        await choose("Project", "Spine Road");
+        expect(await screen.findByText("Couldn't load the gateway poles: APIM is busy.")).toBeTruthy();
+        await fireEvent.press(screen.getByRole("button", { name: "Try again" }));
+        expect(await screen.findByText("Gateway pole: TESTSL1-1001")).toBeTruthy();
+      });
+
+      it("shows why if it's refused, staying on Step 2", async () => {
+        const alert = jest.spyOn(Alert, "alert");
+        const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY) });
+        (api.registerGateway as jest.Mock).mockRejectedValueOnce(new ApiError("Gateway serial not found", 400));
+        await screen.findByText("Gateway pole: TESTSL1-1001");
+        await typeGateway("BAD-1");
+        await fireEvent.press(registerButton());
+        await alertButton(alert, "Register");
+        await waitFor(() => expect(alert).toHaveBeenLastCalledWith("Couldn't register the gateway", "Gateway serial not found"));
+        expect(screen.getByText("Step 2 (warehouse)")).toBeTruthy();
+        expect(screen.queryByTestId("box-install")).toBeNull();
+      });
     });
 
     it("with a gateway: lists it, and the field install can go ahead", async () => {

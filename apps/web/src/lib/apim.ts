@@ -154,7 +154,7 @@ export function parseJsonStringArray(raw: string | null | undefined): string[] {
  * array if it's missing/malformed, so callers never need to null-check
  * that specifically.
  */
-function parseLeadsunProject(
+export function parseLeadsunProject(
   raw: LeadsunProject | string | null | undefined,
 ): LeadsunProject | null {
   if (!raw) return null;
@@ -1012,5 +1012,42 @@ export async function populateLeadsunProject(
     throw new ApimError("APIM didn't return the new project's id.", 502);
   }
   return { leadsunProjectId: String(leadsunProjectId) };
+}
+
+/**
+ * POST /populateLeadsunGateway — the warehouse's "Register gateway": adds a
+ * gateway (a Leadsun group) to the project's Leadsun project. Answers 201
+ * with the project's Leadsun data, now including the new group.
+ */
+export async function populateLeadsunGateway(
+  input: { leadsunProjectId: string; gatewaySerialNumber: string; groupName: string },
+  token: string,
+): Promise<LeadsunProject> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+  const res = await fetch(`${APIM_BASE_URL}/populateLeadsunGateway`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      LeadsunProjectId: input.leadsunProjectId,
+      GatewaySerialNumber: input.gatewaySerialNumber,
+      GroupName: input.groupName,
+    }),
+    cache: "no-store",
+  });
+  const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!res.ok) {
+    const detail = [body?.error, body?.message, body?.title].find((v) => typeof v === "string" && v.trim()) as string | undefined;
+    console.error(`populateLeadsunGateway: APIM returned ${res.status}${detail ? ` — ${detail}` : ""}`);
+    throw new ApimError(detail ?? `Couldn't register the gateway (${res.status}).`, res.status);
+  }
+  const project = parseLeadsunProject(body?.leadsunProject as LeadsunProject | undefined);
+  if (!project) throw new ApimError("APIM didn't return the project's gateways.", 502);
+  return project;
 }
 

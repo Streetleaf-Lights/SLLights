@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { InstallOptionsResponse } from "@sllights/shared/api-contract";
+import type { InstallProjectSetup } from "@sllights/shared/install-options";
 import { useAuth } from "@/auth/AuthProvider";
 
 const KEY = "streetleaf.installOptions.v1";
@@ -43,15 +44,18 @@ export function useInstallOptions() {
   // Projects set up from this phone, until the server's list confirms it: a
   // refresh that arrives before the backend catches up mustn't flip the
   // screen back to Step 1 (and tempt a second set-up).
-  const setUpHere = useRef(new Set<string>());
+  // (Gateways registered here are kept the same way, so Box 3 stays open.)
+  const setUpHere = useRef(new Map<string, InstallProjectSetup>());
   const keepSetUp = useCallback((projects: InstallOptionsResponse["projects"]) => {
     return projects.map((p) => {
-      if (!setUpHere.current.has(p.id)) return p;
-      if (p.setup?.leadsunProject) {
-        setUpHere.current.delete(p.id); // confirmed by the server
+      const expected = setUpHere.current.get(p.id);
+      if (!expected) return p;
+      const confirmed = Boolean(p.setup?.leadsunProject) && (p.setup?.gateways.length ?? 0) >= expected.gateways.length;
+      if (confirmed) {
+        setUpHere.current.delete(p.id); // the server has caught up
         return p;
       }
-      return { ...p, setup: { leadsunProject: true, gateways: p.setup?.gateways ?? [] } };
+      return { ...p, setup: expected };
     });
   }, []);
 
@@ -88,15 +92,20 @@ export function useInstallOptions() {
   }, [fetchFresh]);
 
   /**
-   * After the warehouse sets a project up: mark it so here (and in the copy
+   * After the warehouse sets a project up (or registers its gateway — pass
+   * the project's gateways then): mark it so here (and in the copy
    * saved on the phone) straight away, so Step 2 appears without waiting for
    * the refresh that follows.
    */
   const markSetUp = useCallback(
-    async (projectId: string) => {
-      setUpHere.current.add(projectId);
+    async (projectId: string, gateways?: InstallProjectSetup["gateways"]) => {
       const mark = (projects: InstallOptionsResponse["projects"]) =>
-        projects.map((p) => (p.id === projectId ? { ...p, setup: { leadsunProject: true, gateways: p.setup?.gateways ?? [] } } : p));
+        projects.map((p) => {
+          if (p.id !== projectId) return p;
+          const setup = { leadsunProject: true, gateways: gateways ?? p.setup?.gateways ?? [] };
+          setUpHere.current.set(projectId, setup);
+          return { ...p, setup };
+        });
       setState((s) => ({ ...s, projects: mark(s.projects) }));
       // The copy saved on the phone, so it's right offline too.
       const saved = await readSaved();

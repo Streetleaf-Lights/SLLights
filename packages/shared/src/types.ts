@@ -107,6 +107,8 @@ export interface PoleVital {
   installDate: string | null;
   /** The pole's controller (e.g. "12607D38CF"); null when none is recorded. */
   controllerId?: string | null;
+  /** True for the project's gateway pole (the one its gateway is registered under). */
+  isGateway?: boolean | null;
   lat: number | null;
   long: number | null;
   lastUpdate: string | null;
