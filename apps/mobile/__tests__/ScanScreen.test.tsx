@@ -64,8 +64,21 @@ function setup(send: jest.Mock = jest.fn(async (): Promise<SendResult> => ({ kin
 const OPTIONS = {
   generatedAt: "2026-10-12T15:30:00.000Z",
   projects: [
-    { id: "p1", name: "Spine Road", customerName: "Coastal", stickerNumbers: ["CHA-1157", "CHA-1158"] },
-    { id: "p2", name: "Alpha Street", customerName: "Babcock", stickerNumbers: ["BAB-1"] },
+    {
+      id: "p1",
+      name: "Spine Road",
+      customerName: "Coastal",
+      stickerNumbers: ["CHA-1157", "CHA-1158"],
+      // Set up, with one gateway — chosen automatically.
+      setup: { leadsunProject: true, gateways: [{ code: "GW-SR", name: "SR-1 Spine Road", groupId: 11 }] },
+    },
+    {
+      id: "p2",
+      name: "Alpha Street",
+      customerName: "Babcock",
+      stickerNumbers: ["BAB-1"],
+      setup: { leadsunProject: true, gateways: [{ code: "GW-AS", name: "AS-1 Alpha Street", groupId: 12 }] },
+    },
   ],
 };
 
@@ -239,7 +252,9 @@ describe("Install form (Scan tab)", () => {
 
   it("lists Solar Panel before Light Head (the sticker's order), and the button just says Submit", async () => {
     await renderScreen({ online: true });
-    const scans = screen.getAllByRole("button", { name: /^Scan .* Serial Number$/ }).map((b) => b.props.accessibilityLabel);
+    // (In the install form: Box 2 may also offer a gateway serial scan, for registering another gateway.)
+    const installBox = within(screen.getByTestId("box-install"));
+    const scans = installBox.getAllByRole("button", { name: /^Scan .* Serial Number$/ }).map((b) => b.props.accessibilityLabel);
     expect(scans).toEqual(["Scan Solar Panel Serial Number", "Scan Light Head Serial Number"]);
     expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Submit install" })).toBeNull();
@@ -857,4 +872,123 @@ describe("Install form (Scan tab)", () => {
       expect(screen.getByRole("button", { name: "Scan Gateway Serial Number" })).toBeTruthy();
     });
   });
+
+  describe("choosing the gateway to install poles for", () => {
+    const TWO = {
+      leadsunProject: true,
+      gateways: [
+        { code: "GW-N", name: "N-1 Spine Road", groupId: 21 },
+        { code: "GW-S", name: "S-1 Spine Road", groupId: 22 },
+      ],
+    };
+    const withSetup = (setup: unknown) =>
+      jest.fn().mockResolvedValue({ ...OPTIONS, projects: OPTIONS.projects.map((p, i) => (i === 0 ? { ...p, setup } : p)) });
+    const gatewayField = () => within(screen.getByTestId("box-setup")).getByRole("button", { name: /^Gateway: / });
+
+    it("several gateways: choose one (Box 3 waits), and the install records it", async () => {
+      const { send } = await renderScreen({ online: true, getInstallOptions: withSetup(TWO) });
+      expect(gatewayField().props.accessibilityLabel).toBe("Gateway: Choose a gateway");
+      expect(within(screen.getByTestId("box-choose-gateway")).getByText("Choose a gateway above to install poles for it.")).toBeTruthy();
+      expect(screen.queryByTestId("box-install")).toBeNull();
+
+      await fireEvent.press(gatewayField());
+      await fireEvent.press(screen.getByRole("button", { name: "Choose S-1 Spine Road · GW-S" }));
+      expect(screen.getByTestId("box-install")).toBeTruthy();
+
+      await screen.findByText("Latitude 27.950575");
+      await fillRequired("CHA-1157");
+      await submit();
+      await waitFor(() =>
+        expect(send).toHaveBeenCalledWith(
+          expect.objectContaining({ projectId: "p1", gateway: { code: "GW-S", name: "S-1 Spine Road", groupId: 22 } }),
+        ),
+      );
+    });
+
+    it("choosing the same project again keeps the chosen gateway and sticker", async () => {
+      await renderScreen({ online: true, getInstallOptions: withSetup(TWO) });
+      await fireEvent.press(gatewayField());
+      await fireEvent.press(screen.getByRole("button", { name: "Choose N-1 Spine Road · GW-N" }));
+      await choose("Sticker / Pole Number", "CHA-1158");
+      await choose("Project", "Spine Road");
+      expect(gatewayField().props.accessibilityLabel).toBe("Gateway: N-1 Spine Road · GW-N");
+      expect(screen.getByRole("button", { name: /^Sticker \/ Pole Number: CHA-1158/ })).toBeTruthy();
+    });
+
+    it("one gateway: chosen automatically, and recorded with each install", async () => {
+      const { send } = await renderScreen({ online: true });
+      expect(gatewayField().props.accessibilityLabel).toBe("Gateway: SR-1 Spine Road · GW-SR");
+      await screen.findByText("Latitude 27.950575");
+      await fillRequired("CHA-1157");
+      await submit();
+      await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ gateway: { code: "GW-SR", name: "SR-1 Spine Road", groupId: 11 } })));
+    });
+
+    it("keeps the chosen gateway for the next install, and clears it with the project", async () => {
+      const getInstallOptions = jest.fn().mockResolvedValue({
+        ...OPTIONS,
+        projects: OPTIONS.projects.map((p) => ({ ...p, setup: TWO })),
+      });
+      await renderScreen({ online: false, getInstallOptions });
+      await fireEvent.press(gatewayField());
+      await fireEvent.press(screen.getByRole("button", { name: "Choose S-1 Spine Road · GW-S" }));
+      await screen.findByText("Latitude 27.950575");
+      await fillRequired("CHA-1157");
+      await submit();
+      await screen.findByText(/saved on this phone/);
+      expect(gatewayField().props.accessibilityLabel).toBe("Gateway: S-1 Spine Road · GW-S"); // still chosen
+      await choose("Project", "Alpha Street");
+      expect(gatewayField().props.accessibilityLabel).toBe("Gateway: Choose a gateway"); // cleared
+    });
+
+    it("offers 'Register another gateway' while a gateway pole has none, then lets the crew choose it", async () => {
+      const alert = jest.spyOn(Alert, "alert");
+      const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(TWO), project: null });
+      (api.getGatewayPoles as jest.Mock).mockResolvedValue({
+        poles: [
+          { poleNumber: "N-1", registered: true },
+          { poleNumber: "S-1", registered: true },
+          { poleNumber: "E-1", registered: false },
+        ],
+      });
+      (api.registerGateway as jest.Mock).mockResolvedValue({
+        projectId: "p1",
+        gateways: [...TWO.gateways, { code: "GW-E", name: "E-1 Spine Road", groupId: 23 }],
+      });
+      await choose("Project", "Spine Road");
+      const another = within(await screen.findByTestId("register-another-gateway"));
+      expect(another.getByText("Gateway pole: E-1")).toBeTruthy();
+      await fireEvent.press(another.getByRole("link", { name: "Won't scan? Type the Gateway Serial Number instead" }));
+      await fireEvent.changeText(another.getByLabelText("Gateway Serial Number"), "SER-E");
+      await fireEvent.press(another.getByRole("button", { name: "Register gateway" }));
+      const buttons = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => unknown }[];
+      await act(async () => {
+        await buttons.find((b) => b.text === "Register")?.onPress?.();
+      });
+      expect(api.registerGateway).toHaveBeenCalledWith({ projectId: "p1", poleNumber: "E-1", gatewaySerial: "SER-E" });
+      await fireEvent.press(gatewayField());
+      expect(screen.getByRole("button", { name: "Choose E-1 Spine Road · GW-E" })).toBeTruthy(); // ready to choose
+      alert.mockRestore();
+    });
+
+    it("keeps 'Register another gateway' out of the way when every gateway pole has one, or offline", async () => {
+      const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(TWO), project: null });
+      (api.getGatewayPoles as jest.Mock).mockResolvedValue({ poles: [{ poleNumber: "N-1", registered: true }] });
+      await choose("Project", "Spine Road");
+      await waitFor(() => expect(api.getGatewayPoles).toHaveBeenCalled());
+      expect(screen.queryByTestId("register-another-gateway")).toBeNull();
+      expect(screen.queryByText("Finding the gateway pole…")).toBeNull();
+    });
+
+    it("asks to refresh when the saved list predates gateways", async () => {
+      await AsyncStorage.setItem(
+        "streetleaf.installOptions.v1",
+        JSON.stringify({ ...OPTIONS, projects: OPTIONS.projects.map(({ setup: _s, ...p }) => p) }),
+      );
+      await renderScreen({ online: false, getInstallOptions: jest.fn().mockRejectedValue(new Error("No connection.")) });
+      expect(within(screen.getByTestId("box-setup")).getByText("Refresh the project list (while you have signal) to choose a gateway.")).toBeTruthy();
+      expect(screen.queryByTestId("box-install")).toBeNull();
+    });
+  });
 });
+

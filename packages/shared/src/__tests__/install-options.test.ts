@@ -51,7 +51,7 @@ describe("install setup (the warehouse's steps)", () => {
 
   it("is ready once there's a gateway, listing them by code and name", () => {
     const setup = installSetupFrom(leadsun([{ GatewayCode: " GW-0042 ", GroupName: "North" }, { GatewayCode: "", GroupName: "Blank" }]));
-    expect(setup.gateways).toEqual([{ code: "GW-0042", name: "North" }]);
+    expect(setup.gateways).toEqual([{ code: "GW-0042", name: "North", groupId: 1 }]); // with Leadsun's group id
     expect(installReadiness(setup)).toBe("ready");
   });
 

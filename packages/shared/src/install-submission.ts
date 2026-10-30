@@ -3,11 +3,23 @@
  * first and sent when there's a connection (possibly much later), so it
  * carries its own id and capture time.
  */
+/**
+ * The gateway a pole is installed for (Leadsun group): its code, group name,
+ * and Leadsun group id — what the coming "add pole to gateway" API needs.
+ */
+export interface InstallGateway {
+  code: string;
+  name: string;
+  groupId: number | null;
+}
+
 export interface InstallSubmission {
   /** Created on the phone; lets the server ignore a resend of the same install. */
   id: string;
   /** The project the pole belongs to (chosen in the form's first dropdown). */
   projectId: string;
+  /** The gateway it's installed for (chosen in Box 2) — required. */
+  gateway: InstallGateway;
   lightHeadSerial: string;
   solarPanelSerial: string;
   /** The pole's sticker number (chosen in the form's second dropdown). */
@@ -28,6 +40,7 @@ export const INSTALL_NOTES_MAX_LENGTH = 500;
 /** What the form holds before an id and capture time are added. */
 export interface InstallDraft {
   projectId: string;
+  gateway: InstallGateway | null;
   lightHeadSerial: string;
   solarPanelSerial: string;
   poleNumber: string;
@@ -36,7 +49,7 @@ export interface InstallDraft {
 }
 
 export type InstallFieldErrors = Partial<
-  Record<"projectId" | "lightHeadSerial" | "solarPanelSerial" | "poleNumber" | "location" | "notes", string>
+  Record<"projectId" | "gateway" | "lightHeadSerial" | "solarPanelSerial" | "poleNumber" | "location" | "notes", string>
 >;
 
 const blankToNull = (value: string) => (value.trim() ? value.trim() : null);
@@ -57,6 +70,8 @@ export function validateInstallDraft(
   const projectId = draft.projectId.trim();
 
   if (!projectId) errors.projectId = "Select a project.";
+  const gateway = draft.gateway && draft.gateway.code.trim() ? draft.gateway : null;
+  if (!gateway) errors.gateway = "Select a gateway.";
   if (!lightHeadSerial) errors.lightHeadSerial = "Light Head Serial Number is required.";
   else if (lightHeadSerial.length > SERIAL_MAX_LENGTH) errors.lightHeadSerial = `Serial numbers are at most ${SERIAL_MAX_LENGTH} characters.`;
   if (!solarPanelSerial) errors.solarPanelSerial = "Solar Panel Serial Number is required.";
@@ -74,12 +89,13 @@ export function validateInstallDraft(
   if (!usableLocation) errors.location = "Location is required. Get the location before submitting.";
 
   if (draft.notes.length > INSTALL_NOTES_MAX_LENGTH) errors.notes = `Notes must be at most ${INSTALL_NOTES_MAX_LENGTH} characters.`;
-  if (Object.keys(errors).length > 0 || !usableLocation) return { ok: false, errors };
+  if (Object.keys(errors).length > 0 || !usableLocation || !gateway) return { ok: false, errors };
 
   return {
     ok: true,
     value: {
       projectId,
+      gateway: { code: gateway.code.trim(), name: gateway.name.trim(), groupId: gateway.groupId },
       lightHeadSerial,
       solarPanelSerial,
       poleNumber,
@@ -106,8 +122,18 @@ export function validateInstallSubmission(body: unknown): { ok: true; value: Ins
   if (b.notes !== undefined && b.notes !== null && typeof b.notes !== "string") return { ok: false, error: "notes must be text." };
   const lat = b.latitude;
   const long = b.longitude;
+  const g = b.gateway && typeof b.gateway === "object" ? (b.gateway as Record<string, unknown>) : null;
+  const gateway: InstallGateway | null =
+    g && typeof g.code === "string"
+      ? {
+          code: g.code,
+          name: typeof g.name === "string" ? g.name : g.code,
+          groupId: typeof g.groupId === "number" && Number.isFinite(g.groupId) ? g.groupId : null,
+        }
+      : null;
   const checked = validateInstallDraft({
     projectId: str(b.projectId),
+    gateway,
     lightHeadSerial: str(b.lightHeadSerial),
     solarPanelSerial: str(b.solarPanelSerial),
     poleNumber: str(b.poleNumber),

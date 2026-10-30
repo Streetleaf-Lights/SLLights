@@ -35,8 +35,10 @@ const SCAN_TITLES: Record<ScanTarget, string> = {
  *  - Box 1: the project (both teams).
  *  - Box 2: the warehouse's setup of that project, with internet — create
  *    it on Leadsun, then register its gateway (scan the gateway serial).
- *  - Box 3: the field install, shown only once the project has a gateway;
- *    until then, a note says what's missing (and to Refresh in signal).
+ *  - Box 3: the field install, shown once the project has a gateway and one
+ *    is chosen (the only one is chosen automatically); until then, a note
+ *    says what's missing (and to Refresh in signal). Each install records
+ *    its project and gateway.
  *
  * Box 3 records a field install: the project's sticker (the pole number) —
  * from dropdowns that work offline and leave out stickers already
@@ -60,6 +62,12 @@ export default function InstallScreen() {
   // Field installs (Box 3) need the warehouse's setup done: a gateway.
   const readiness = project ? installReadiness(project.setup) : null;
   const [gatewaySerial, setGatewaySerial] = useState("");
+  // The gateway poles are installed for (Box 2): the only one is chosen
+  // automatically; it stays chosen for the next install, and clears with the project.
+  const [chosenGateway, setChosenGateway] = useState<{ projectId: string; code: string } | null>(null);
+  const gateways = project?.setup?.gateways ?? [];
+  const chosenCode = chosenGateway && chosenGateway.projectId === project?.id ? chosenGateway.code : null;
+  const gateway = gateways.length === 1 ? gateways[0] : (gateways.find((g) => g.code === chosenCode) ?? null);
   const { state: location, capture } = useLocationFix({ auto: true });
   const [lightHeadSerial, setLightHeadSerial] = useState("");
   const [solarPanelSerial, setSolarPanelSerial] = useState("");
@@ -138,6 +146,7 @@ export default function InstallScreen() {
       lightHeadSerial,
       solarPanelSerial,
       projectId: project?.id ?? "",
+      gateway: gateway ? { code: gateway.code, name: gateway.name, groupId: gateway.groupId ?? null } : null,
       poleNumber: project && sticker && project.stickerNumbers.includes(sticker) ? sticker : "",
       location: fix ? { latitude: fix.latitude, longitude: fix.longitude, accuracyMeters: fix.accuracyMeters } : null,
       notes,
@@ -201,9 +210,11 @@ export default function InstallScreen() {
             options={remaining.map((p) => ({ value: p.id, label: p.name, detail: p.customerName }))}
             value={project ? project.id : null}
             onChange={(id) => {
+              if (id === project?.id) return; // the same project again: keep what's chosen
               setProjectId(id);
               setSticker(null);
               setGatewaySerial("");
+              setChosenGateway(null);
             }}
             emptyText="No projects have stickers left to install."
             error={errors.projectId}
@@ -235,6 +246,9 @@ export default function InstallScreen() {
               settingUp={settingUp}
               onSetUp={() => confirmSetUp(project.id, project.name)}
               registering={registering}
+              selectedGatewayCode={gateway?.code ?? null}
+              onSelectGateway={(code) => setChosenGateway({ projectId: project.id, code })}
+              gatewayError={errors.gateway}
               onRegister={(pole) => confirmRegister(project.id, pole, gatewaySerial.trim())}
             />
           </View>
@@ -252,7 +266,16 @@ export default function InstallScreen() {
             </Text>
           </View>
         ) : null}
-        {project && readiness === "ready" ? (
+        {project && readiness === "ready" && !gateway ? (
+          <View style={styles.card} testID="box-choose-gateway">
+            <Text style={styles.muted}>
+              {project.setup
+                ? "Choose a gateway above to install poles for it."
+                : "Refresh the project list (while you have signal) to choose a gateway."}
+            </Text>
+          </View>
+        ) : null}
+        {project && readiness === "ready" && gateway ? (
           <View style={styles.card} testID="box-install">
             <SelectField
               label="Sticker / Pole Number"

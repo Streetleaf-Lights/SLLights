@@ -12,6 +12,7 @@ describe("Airtable install fields", () => {
     const fields = installFields({
       id: "x",
       projectId: "p",
+      gateway: { code: "GW-1", name: "P-1 Project", groupId: 1 },
       lightHeadSerial: "L",
       solarPanelSerial: "S",
       poleNumber: "P-1",

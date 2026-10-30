@@ -286,7 +286,7 @@ export interface GatewayPolesResponse {
 /** "Register gateway" succeeded: the project's gateways now. */
 export interface RegisterGatewayResponse {
   projectId: string;
-  gateways: { code: string; name: string }[];
+  gateways: { code: string; name: string; groupId?: number | null }[];
 }
 
 /**

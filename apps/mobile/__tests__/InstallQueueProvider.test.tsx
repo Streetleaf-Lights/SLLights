@@ -30,6 +30,7 @@ const waitingItem = (n: number): QueueItem => ({
   submission: {
     id: `id-${n}`,
     projectId: "p1",
+    gateway: { code: "GW-1", name: "PAS-1 Spine Road", groupId: 1890 },
     lightHeadSerial: `LH-${n}`,
     solarPanelSerial: `SP-${n}`,
     poleNumber: `PAS-${n}`,

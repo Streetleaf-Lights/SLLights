@@ -27,7 +27,8 @@ export function remainingInstallOptions(
  */
 export interface InstallProjectSetup {
   leadsunProject: boolean;
-  gateways: { code: string; name: string }[];
+  /** The registered gateways (Leadsun groups); groupId is Leadsun's GroupId. */
+  gateways: { code: string; name: string; groupId?: number | null }[];
 }
 
 /** The setup described by a project's Leadsun data (null: not set up on Leadsun yet). */
@@ -37,7 +38,11 @@ export function installSetupFrom(leadsunProject: LeadsunProject | null | undefin
     leadsunProject: true,
     gateways: (leadsunProject.groups ?? [])
       .filter((g) => Boolean(g.GatewayCode?.trim()))
-      .map((g) => ({ code: g.GatewayCode.trim(), name: g.GroupName?.trim() || g.GatewayCode.trim() })),
+      .map((g) => ({
+        code: g.GatewayCode.trim(),
+        name: g.GroupName?.trim() || g.GatewayCode.trim(),
+        groupId: typeof g.GroupId === "number" ? g.GroupId : null,
+      })),
   };
 }
 

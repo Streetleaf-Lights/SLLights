@@ -13,9 +13,11 @@ import { POST } from "@/app/api/mobile/installs/route";
 const exp = Math.floor(Date.now() / 1000) + 3600;
 const crew = testToken({ sub: "crew1", role: "Streetleaf Crew", exp });
 
+const GATEWAY = { code: "GT12L94A24072662", name: "TESTSL1-1001 Babcock", groupId: 1890 };
 const install = {
   id: "uuid-1",
   projectId: "p1",
+  gateway: GATEWAY,
   lightHeadSerial: "RHEA000025111652",
   solarPanelSerial: "AEXSAM3325111132",
   poleNumber: "TESTSL1-1001",
@@ -44,7 +46,21 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   users.mockResolvedValue([{ id: "crew1", name: "Casey Crew", email: "casey@streetleaf.com", role: "Streetleaf Crew" }]);
   allProjects.mockResolvedValue([
-    { id: "p1", name: "Babcock", customerId: "c1", active: true, stickerNumbers: ["TESTSL1-1001", "TESTSL1-1002"], leadsunProject: null },
+    {
+      id: "p1",
+      name: "Babcock",
+      customerId: "c1",
+      active: true,
+      stickerNumbers: ["TESTSL1-1001", "TESTSL1-1002"],
+      // Set up, with its gateway registered.
+      leadsunProject: {
+        ProjectId: "751",
+        ProjectName: "Babcock",
+        totalGateways: 1,
+        totalPoles: 0,
+        groups: [{ GroupId: 1890, GroupName: GATEWAY.name, GatewayCode: GATEWAY.code, totalPoles: 0, products: [] }],
+      },
+    },
     { id: "p2", name: "Old", customerId: "c1", active: false, stickerNumbers: ["OLD-1"], leadsunProject: null },
   ]);
 });
@@ -151,6 +167,21 @@ describe("POST /api/mobile/installs", () => {
   ])("refuses %s (422), without touching Airtable", async (_l, body) => {
     expect((await post(body)).status).toBe(422);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a gateway that isn't registered for the project (422), without touching Airtable", async () => {
+    const res = await post({ ...install, gateway: { code: "SOMEONE-ELSES", name: "x", groupId: 1 } });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe("That gateway isn't registered for this project.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("400s an install without a gateway (e.g. saved on a phone before gateways were required)", async () => {
+    const { gateway: _omitted, ...withoutGateway } = install;
+    void _omitted;
+    const res = await post(withoutGateway);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Select a gateway.");
   });
 
   it("400s an incomplete install", async () => {

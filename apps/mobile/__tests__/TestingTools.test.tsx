@@ -16,6 +16,7 @@ const waiting = (id: string): QueueItem => ({
   submission: {
     id,
     projectId: "p1",
+    gateway: { code: "GW-1", name: "PAS-1 Spine Road", groupId: 1890 },
     lightHeadSerial: "L",
     solarPanelSerial: "S",
     poleNumber: "CHA-1158",

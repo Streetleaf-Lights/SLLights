@@ -76,7 +76,10 @@ describe("POST /api/mobile/install-setup/gateway (Register gateway)", () => {
   it("registers via populateLeadsunGateway, from our records, and returns the gateways", async () => {
     const res = await post({ ...good, leadsunProjectId: "999", groupName: "made up" });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ projectId: "p1", gateways: [{ code: "GT12L94A24072662", name: "TESTSL1-1001 Streetleaf - SL1 Test" }] });
+    expect(await res.json()).toEqual({
+      projectId: "p1",
+      gateways: [{ code: "GT12L94A24072662", name: "TESTSL1-1001 Streetleaf - SL1 Test", groupId: 1890 }],
+    });
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toMatch(/\/populateLeadsunGateway$/);
     expect(init.headers.Authorization).toBe(`Bearer ${crew}`);

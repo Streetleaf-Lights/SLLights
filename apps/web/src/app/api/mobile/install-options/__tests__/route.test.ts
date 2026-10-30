@@ -68,7 +68,7 @@ describe("GET /api/mobile/install-options", () => {
       },
     ]);
     const body = await (await call("Streetleaf Crew")).json();
-    expect(body.projects[0].setup).toEqual({ leadsunProject: true, gateways: [{ code: "GW-0042", name: "North" }] });
+    expect(body.projects[0].setup).toEqual({ leadsunProject: true, gateways: [{ code: "GW-0042", name: "North", groupId: 1 }] });
   });
 
   it("is available to Streetleaf Admins too (they have the Install tab)", async () => {

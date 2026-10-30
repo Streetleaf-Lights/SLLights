@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { InstallResponse } from "@sllights/shared/api-contract";
 import { canUseFieldTools } from "@sllights/shared/auth-role";
 import { isCrewProject } from "@sllights/shared/crew-access";
+import { installSetupFrom } from "@sllights/shared/install-options";
 import { validateInstallSubmission } from "@sllights/shared/install-submission";
 import { AirtableError, createInstall, findInstallByPole } from "@/lib/airtableInstalls";
 import { ApimError, getAllProjects, getUsers } from "@/lib/apim";
@@ -15,6 +16,7 @@ const same = (a: string | null, b: string) => (a ?? "").trim().toUpperCase() ===
  * in Airtable after checking:
  *  - the caller has the Install tab (Streetleaf Admin or Crew) — 403;
  *  - the install is complete and valid — 400;
+ *  - its gateway is registered for that project — 422;
  *  - its sticker belongs to that project, which is active — 422 (e.g. the
  *    office changed the stickers after the crew's list was saved offline);
  *  - the pole isn't already recorded: the same Install ID, or the same
@@ -51,6 +53,11 @@ export async function POST(request: NextRequest) {
     }
     if (!project.stickerNumbers.some((s) => same(s, install.poleNumber))) {
       return NextResponse.json({ error: `${install.poleNumber} isn't one of this project's stickers.` }, { status: 422 });
+    }
+    // The gateway must be one registered for this project (its Leadsun group).
+    const gateways = installSetupFrom(project.leadsunProject).gateways;
+    if (!gateways.some((g) => same(g.code, install.gateway.code))) {
+      return NextResponse.json({ error: "That gateway isn't registered for this project." }, { status: 422 });
     }
 
     const existing = await findInstallByPole(install.poleNumber);

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { validateInstallDraft, type InstallDraft } from "../install-submission";
 
+const GATEWAY = { code: "GT12L94A24072662", name: "TESTSL1-1001 Spine Road", groupId: 1890 };
 const draft = (extra: Partial<InstallDraft> = {}): InstallDraft => ({
   projectId: "p1",
+  gateway: GATEWAY,
   lightHeadSerial: "  LH-001 ",
   solarPanelSerial: " SP-002 ",
   poleNumber: " pas-12 ",
@@ -17,6 +19,7 @@ describe("validateInstallDraft (everything required except Notes)", () => {
       ok: true,
       value: {
         projectId: "p1",
+        gateway: GATEWAY,
         lightHeadSerial: "LH-001",
         solarPanelSerial: "SP-002",
         poleNumber: "PAS-12",
@@ -71,6 +74,7 @@ describe("validateInstallSubmission (server side)", () => {
   const good = {
     id: "uuid-1",
     projectId: "p1",
+    gateway: GATEWAY,
     lightHeadSerial: " RHEA000025111652 ",
     solarPanelSerial: "AEXSAM3325111132",
     poleNumber: "testsl1-1001",
@@ -100,3 +104,28 @@ describe("validateInstallSubmission (server side)", () => {
     expect(validateInstallSubmission(body)).toMatchObject({ ok: false });
   });
 });
+
+describe("the gateway (required with the project)", () => {
+  it("refuses an install without a gateway", () => {
+    expect(validateInstallDraft(draft({ gateway: null }))).toMatchObject({ ok: false, errors: { gateway: "Select a gateway." } });
+    expect(validateInstallDraft(draft({ gateway: { code: "  ", name: "x", groupId: null } }))).toMatchObject({ ok: false });
+  });
+
+  it("carries the gateway, with its Leadsun group id, through the server-side check", () => {
+    const body = {
+      id: "u1",
+      projectId: "p1",
+      gateway: { code: "GW-1", name: "PAS-1 Spine Road", groupId: 1890 },
+      lightHeadSerial: "L",
+      solarPanelSerial: "S",
+      poleNumber: "PAS-1",
+      latitude: 1,
+      longitude: 2,
+      capturedAt: "2026-10-29T12:00:00Z",
+    };
+    expect(validateInstallSubmission(body)).toMatchObject({ ok: true, value: { gateway: { code: "GW-1", name: "PAS-1 Spine Road", groupId: 1890 } } });
+    // Saved before this update (no gateway): refused as incomplete.
+    expect(validateInstallSubmission({ ...body, gateway: undefined })).toEqual({ ok: false, error: "Select a gateway." });
+  });
+});
+
