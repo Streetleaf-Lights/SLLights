@@ -365,7 +365,15 @@ export interface PolesPageResult {
  * pageSize: APIM's default is 50, capped at 1000.
  */
 export async function getPolesPage(
-  query: { page: number; pageSize: number; poleNumber?: string; customerId?: string; projectId?: string },
+  query: {
+    page: number;
+    pageSize: number;
+    poleNumber?: string;
+    customerId?: string;
+    projectId?: string;
+    /** Skip the short APIM_CACHE_SECONDS cache — for decisions that need current data (e.g. gateway poles). */
+    fresh?: boolean;
+  },
   token?: string | null,
 ): Promise<PolesPageResult> {
   const params = new URLSearchParams({
@@ -375,7 +383,7 @@ export async function getPolesPage(
   if (query.poleNumber?.trim()) params.set("poleNumber", query.poleNumber.trim());
   if (query.customerId) params.set("customerId", query.customerId);
   if (query.projectId) params.set("projectId", query.projectId);
-  const raw = await apimFetch<Partial<PolesPageResult>>(`/getPoles?${params.toString()}`, { token });
+  const raw = await apimFetch<Partial<PolesPageResult>>(`/getPoles?${params.toString()}`, { token, noStore: query.fresh });
   if (!raw || !Array.isArray(raw.items) || typeof raw.total !== "number") {
     throw new ApimError("APIM returned an unexpected /getPoles page.", 502);
   }

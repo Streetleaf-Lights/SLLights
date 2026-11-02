@@ -764,6 +764,28 @@ describe("Install form (Scan tab)", () => {
         expect(screen.getByTestId("box-install")).toBeTruthy();
       });
 
+      it("Refresh reloads the gateway poles (e.g. a pole that's no longer a gateway pole)", async () => {
+        const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY) });
+        expect(await screen.findByText("Gateway pole: TESTSL1-1001")).toBeTruthy();
+        (api.getGatewayPoles as jest.Mock).mockResolvedValue({ poles: [] }); // after the latest pole load
+        await fireEvent.press(screen.getByRole("button", { name: "Refresh project list" }));
+        expect(await screen.findByText("No pole in this project is marked as a gateway pole yet.")).toBeTruthy();
+        expect(screen.queryByText("Gateway pole: TESTSL1-1001")).toBeNull();
+      });
+
+      it("reloads the gateway poles when Register is refused because they've changed", async () => {
+        const alert = jest.spyOn(Alert, "alert");
+        const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY) });
+        await screen.findByText("Gateway pole: TESTSL1-1001");
+        (api.registerGateway as jest.Mock).mockRejectedValueOnce(new ApiError("TESTSL1-1001 isn't a gateway pole in this project.", 422));
+        (api.getGatewayPoles as jest.Mock).mockResolvedValue({ poles: [{ poleNumber: "TESTSL1-1002", registered: false }] });
+        await typeGateway("SER-1");
+        await fireEvent.press(registerButton());
+        await alertButton(alert, "Register");
+        expect(await screen.findByText("Gateway pole: TESTSL1-1002")).toBeTruthy(); // the current one
+        expect(alert).toHaveBeenLastCalledWith("Couldn't register the gateway", "TESTSL1-1001 isn't a gateway pole in this project.");
+      });
+
       it("several gateway poles: choose one of those without a gateway", async () => {
         const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(NO_GATEWAY) });
         (api.getGatewayPoles as jest.Mock).mockResolvedValue({
@@ -968,6 +990,41 @@ describe("Install form (Scan tab)", () => {
       expect(api.registerGateway).toHaveBeenCalledWith({ projectId: "p1", poleNumber: "E-1", gatewaySerial: "SER-E" });
       await fireEvent.press(gatewayField());
       expect(screen.getByRole("button", { name: "Choose E-1 Spine Road · GW-E" })).toBeTruthy(); // ready to choose
+      alert.mockRestore();
+    });
+
+    it("drops a just-registered gateway pole from 'Register another gateway' straight away", async () => {
+      const alert = jest.spyOn(Alert, "alert");
+      const { api } = await renderScreen({ online: true, getInstallOptions: withSetup(TWO), project: null });
+      // The server's answer doesn't change yet (it still says E-1 has no gateway).
+      (api.getGatewayPoles as jest.Mock).mockResolvedValue({
+        poles: [
+          { poleNumber: "N-1", registered: true },
+          { poleNumber: "E-1", registered: false },
+          { poleNumber: "W-1", registered: false },
+        ],
+      });
+      (api.registerGateway as jest.Mock).mockResolvedValue({
+        projectId: "p1",
+        gateways: [...TWO.gateways, { code: "GW-E", name: "E-1 Spine Road", groupId: 23 }],
+      });
+      await choose("Project", "Spine Road");
+      const section = () => within(screen.getByTestId("register-another-gateway"));
+      await screen.findByTestId("register-another-gateway");
+      await fireEvent.press(section().getByRole("button", { name: /^Gateway Pole: / }));
+      expect(screen.getAllByRole("button", { name: /^Choose [EW]-1$/ }).map((b) => b.props.accessibilityLabel)).toEqual(["Choose E-1", "Choose W-1"]);
+      await fireEvent.press(screen.getByRole("button", { name: "Choose E-1" }));
+      await fireEvent.press(section().getByRole("link", { name: "Won't scan? Type the Gateway Serial Number instead" }));
+      await fireEvent.changeText(section().getByLabelText("Gateway Serial Number"), "SER-E");
+      await fireEvent.press(section().getByRole("button", { name: "Register gateway" }));
+      const buttons = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => unknown }[];
+      await act(async () => {
+        await buttons.find((b) => b.text === "Register")?.onPress?.();
+      });
+      // E-1 is gone; only W-1 is left to register.
+      expect(await section().findByText("Gateway pole: W-1")).toBeTruthy();
+      expect(screen.queryByText("Gateway pole: E-1")).toBeNull();
+      expect(api.getGatewayPoles).toHaveBeenCalledTimes(2); // and the server was asked again
       alert.mockRestore();
     });
 

@@ -20,7 +20,9 @@ export async function gatewayPolesFor(project: Project, token: string): Promise<
   // call's summary may not. 1000 per page (APIM's cap); most projects fit one.
   const poles = [];
   for (let page = 1; ; page++) {
-    const result = await getPolesPage({ page, pageSize: 1000, projectId: project.id }, token);
+    // Always fresh: whether a pole is a gateway pole can change (e.g. after a
+    // data load), and registering must go by what APIM says now.
+    const result = await getPolesPage({ page, pageSize: 1000, projectId: project.id, fresh: true }, token);
     poles.push(...result.items);
     if (result.items.length === 0 || poles.length >= result.total || page >= 50) break;
   }

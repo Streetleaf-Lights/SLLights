@@ -53,6 +53,9 @@ export default function InstallScreen() {
   const { api } = useAuth();
   const [settingUp, setSettingUp] = useState(false);
   const [registering, setRegistering] = useState(false);
+  // Bumped to reload Box 2's gateway poles: on Refresh, or when Register is
+  // refused because they've changed (e.g. a pole is no longer a gateway pole).
+  const [setupRefresh, setSetupRefresh] = useState(0);
   const options = useInstallOptions();
   // Projects and stickers not yet submitted from this phone (a project with none left drops out).
   const remaining = remainingInstallOptions(options.projects, submittedStickers);
@@ -130,9 +133,10 @@ export default function InstallScreen() {
       await options.markSetUp(id, res.gateways); // Box 3 opens straight away…
       void options.refresh(); // …and the list catches up from the server.
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        // Already registered (or the project changed): catch up from the server.
+      if (err instanceof ApiError && (err.status === 409 || err.status === 422)) {
+        // Already registered, or no longer a gateway pole: catch up from the server.
         void options.refresh();
+        setSetupRefresh((n) => n + 1);
       }
       Alert.alert("Couldn't register the gateway", err instanceof Error ? err.message : "Please try again.");
     } finally {
@@ -227,7 +231,15 @@ export default function InstallScreen() {
                   : "Projects couldn't be loaded. Connect to the internet once to download them."
                 : `${options.source === "saved" ? "Saved list" : "Updated"} ${new Date(options.updatedAt ?? "").toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`}
             </Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Refresh project list" onPress={() => void options.refresh()} hitSlop={8}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Refresh project list"
+              onPress={() => {
+                void options.refresh();
+                setSetupRefresh((n) => n + 1); // the gateway poles too
+              }}
+              hitSlop={8}
+            >
               <Text style={styles.link}>{options.loading ? "Refreshing…" : "Refresh"}</Text>
             </Pressable>
           </View>
@@ -249,6 +261,7 @@ export default function InstallScreen() {
               selectedGatewayCode={gateway?.code ?? null}
               onSelectGateway={(code) => setChosenGateway({ projectId: project.id, code })}
               gatewayError={errors.gateway}
+              refreshKey={setupRefresh}
               onRegister={(pole) => confirmRegister(project.id, pole, gatewaySerial.trim())}
             />
           </View>

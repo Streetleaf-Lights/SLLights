@@ -94,7 +94,8 @@ describe("POST /api/mobile/install-setup/gateway (Register gateway)", () => {
 
   it("looks the gateway poles up for that project only", async () => {
     await post(good);
-    expect(m.getPolesPage).toHaveBeenCalledWith(expect.objectContaining({ projectId: "p1", pageSize: 1000 }), crew);
+    // Always asked fresh (not from the short cache): gateway poles can change.
+    expect(m.getPolesPage).toHaveBeenCalledWith(expect.objectContaining({ projectId: "p1", pageSize: 1000, fresh: true }), crew);
   });
 
   it.each([

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { GatewayPolesResponse } from "@sllights/shared/api-contract";
-import { installReadiness, type InstallProjectSetup } from "@sllights/shared/install-options";
+import { installReadiness, isGatewayPoleRegistered, type InstallProjectSetup } from "@sllights/shared/install-options";
 import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/ui/Button";
 import { SelectField } from "@/ui/SelectField";
@@ -38,6 +38,7 @@ export function ProjectSetupBox({
   selectedGatewayCode,
   onSelectGateway,
   gatewayError,
+  refreshKey = 0,
 }: {
   projectId: string;
   setup: InstallProjectSetup | undefined;
@@ -58,9 +59,21 @@ export function ProjectSetupBox({
   onSelectGateway: (code: string) => void;
   /** From Submit, when no gateway is chosen. */
   gatewayError?: string;
+  /** Changes when the gateway poles should be loaded again (Refresh, or a refused Register). */
+  refreshKey?: number;
 }) {
   const readiness = installReadiness(setup);
-  const register = { projectId, gatewaySerial, onChangeGatewaySerial, onScanGateway, online, registering, onRegister };
+  const register = {
+    projectId,
+    gateways: setup?.gateways ?? [],
+    refreshKey,
+    gatewaySerial,
+    onChangeGatewaySerial,
+    onScanGateway,
+    online,
+    registering,
+    onRegister,
+  };
 
   return (
     <View style={styles.box} testID="project-setup">
@@ -108,6 +121,8 @@ export function ProjectSetupBox({
 function RegisterGateway({
   mode,
   projectId,
+  gateways,
+  refreshKey,
   gatewaySerial,
   onChangeGatewaySerial,
   onScanGateway,
@@ -116,7 +131,10 @@ function RegisterGateway({
   onRegister,
 }: {
   mode: "first" | "another";
+  refreshKey: number;
   projectId: string;
+  /** The project's registered gateways, as the phone knows them now. */
+  gateways: InstallProjectSetup["gateways"];
   gatewaySerial: string;
   onChangeGatewaySerial: (text: string) => void;
   onScanGateway: () => void;
@@ -126,7 +144,10 @@ function RegisterGateway({
 }) {
   const { api } = useAuth();
   const [attempt, setAttempt] = useState(0);
-  const key = `${projectId}#${attempt}`;
+  // Ask the server again whenever the project's gateways change (e.g. one was
+  // just registered), so the list of gateway poles stays current.
+  const gatewayCodes = gateways.map((g) => g.code).join(",");
+  const key = `${projectId}#${attempt}#${gatewayCodes}#${refreshKey}`;
   const [loaded, setLoaded] = useState<{ key: string; poles?: GatewayPolesResponse["poles"]; error?: string } | null>(null);
   useEffect(() => {
     if (!online) return;
@@ -140,7 +161,9 @@ function RegisterGateway({
     };
   }, [api, projectId, key, online]);
   const current = loaded?.key === key ? loaded : null;
-  const openPoles = (current?.poles ?? []).filter((p) => !p.registered);
+  // A pole with a gateway — by the server's answer, or by the gateways the
+  // phone already knows (a just-registered one drops out straight away).
+  const openPoles = (current?.poles ?? []).filter((p) => !p.registered && !isGatewayPoleRegistered(p.poleNumber, gateways));
   const [chosenPole, setChosenPole] = useState<{ projectId: string; pole: string } | null>(null);
   const gatewayPole =
     openPoles.length === 1

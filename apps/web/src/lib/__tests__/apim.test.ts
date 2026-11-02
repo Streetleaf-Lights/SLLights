@@ -2199,3 +2199,18 @@ describe("getPolesPage (APIM's paged /getPoles)", () => {
     await expect(getPolesPage({ page: 1, pageSize: 10 }, "t")).rejects.toMatchObject({ status: 502 });
   });
 });
+
+describe("getPolesPage: fresh", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("skips the cache when asked for fresh data, and uses it otherwise", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ total: 0, page: 1, pageSize: 10, items: [] })));
+    vi.stubGlobal("fetch", fetchMock);
+    await getPolesPage({ page: 1, pageSize: 10, projectId: "p1", fresh: true }, "t");
+    await getPolesPage({ page: 1, pageSize: 10, projectId: "p1" }, "t");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
+    expect(fetchMock.mock.calls[1][1]).not.toHaveProperty("cache");
+    expect(fetchMock.mock.calls[1][1].next).toMatchObject({ revalidate: expect.any(Number) });
+  });
+});
+
