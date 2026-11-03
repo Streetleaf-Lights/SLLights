@@ -120,12 +120,28 @@ export function BarcodeScannerModal({
           ) : (
             <View style={styles.permission}>
               <Ionicons name="camera-outline" size={40} color={colors.surface} />
-              <Text style={styles.permissionTitle}>Camera access is off</Text>
-              <Text style={styles.permissionBody}>Allow the camera to scan, or type the serial number instead.</Text>
+              {/*
+                Apple (guideline 5.1.1(iv)): the screen before the system's
+                camera prompt mustn't push people to allow it — a neutral
+                "Continue", and a reminder they can type the serial instead.
+                If they declined before, point to Settings.
+              */}
               {permission.canAskAgain ? (
-                <Button label="Allow camera" onPress={() => void requestPermission()} />
+                <>
+                  <Text style={styles.permissionTitle}>Scan with the camera</Text>
+                  <Text style={styles.permissionBody}>
+                    The camera is used to read the barcode. You can also close this and type the serial number instead.
+                  </Text>
+                  <Button label="Continue" onPress={() => void requestPermission()} />
+                </>
               ) : (
-                <Button label="Open Settings" variant="secondary" onPress={() => void Linking.openSettings()} />
+                <>
+                  <Text style={styles.permissionTitle}>Camera access is off</Text>
+                  <Text style={styles.permissionBody}>
+                    To scan, turn on camera access for Streetleaf Lights in Settings. Or close this and type the serial number instead.
+                  </Text>
+                  <Button label="Open Settings" variant="secondary" onPress={() => void Linking.openSettings()} />
+                </>
               )}
             </View>
           )}
