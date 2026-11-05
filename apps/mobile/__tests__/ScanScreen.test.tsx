@@ -71,6 +71,8 @@ const OPTIONS = {
       stickerNumbers: ["CHA-1157", "CHA-1158"],
       // Set up, with one gateway — chosen automatically.
       setup: { leadsunProject: true, gateways: [{ code: "GW-SR", name: "SR-1 Spine Road", groupId: 11 }] },
+      // Its planned gateway (`gateways`) — all the project's poles.
+      gatewayPlans: [{ name: "SR-1 Spine Road", poleNumber: "SR-1", connectedPoles: ["CHA-1157", "CHA-1158"] }],
     },
     {
       id: "p2",
@@ -78,6 +80,7 @@ const OPTIONS = {
       customerName: "Babcock",
       stickerNumbers: ["BAB-1"],
       setup: { leadsunProject: true, gateways: [{ code: "GW-AS", name: "AS-1 Alpha Street", groupId: 12 }] },
+      gatewayPlans: [{ name: "AS-1 Alpha Street", poleNumber: "AS-1", connectedPoles: ["BAB-1"] }],
     },
   ],
 };
@@ -903,8 +906,16 @@ describe("Install form (Scan tab)", () => {
         { code: "GW-S", name: "S-1 Spine Road", groupId: 22 },
       ],
     };
+    const TWO_PLANS = [
+      { name: "N-1 Spine Road", poleNumber: "N-1", connectedPoles: ["CHA-1157", "CHA-1158"] },
+      { name: "S-1 Spine Road", poleNumber: "S-1", connectedPoles: ["CHA-1157", "CHA-1158"] },
+      { name: "E-1 Spine Road", poleNumber: "E-1", connectedPoles: ["CHA-1157"] },
+    ];
     const withSetup = (setup: unknown) =>
-      jest.fn().mockResolvedValue({ ...OPTIONS, projects: OPTIONS.projects.map((p, i) => (i === 0 ? { ...p, setup } : p)) });
+      jest.fn().mockResolvedValue({
+        ...OPTIONS,
+        projects: OPTIONS.projects.map((p, i) => (i === 0 ? { ...p, setup, gatewayPlans: TWO_PLANS } : p)),
+      });
     const gatewayField = () => within(screen.getByTestId("box-setup")).getByRole("button", { name: /^Gateway: / });
 
     it("several gateways: choose one (Box 3 waits), and the install records it", async () => {
@@ -949,7 +960,7 @@ describe("Install form (Scan tab)", () => {
     it("keeps the chosen gateway for the next install, and clears it with the project", async () => {
       const getInstallOptions = jest.fn().mockResolvedValue({
         ...OPTIONS,
-        projects: OPTIONS.projects.map((p) => ({ ...p, setup: TWO })),
+        projects: OPTIONS.projects.map((p) => ({ ...p, setup: TWO, gatewayPlans: TWO_PLANS })),
       });
       await renderScreen({ online: false, getInstallOptions });
       await fireEvent.press(gatewayField());
@@ -1045,6 +1056,106 @@ describe("Install form (Scan tab)", () => {
       await renderScreen({ online: false, getInstallOptions: jest.fn().mockRejectedValue(new Error("No connection.")) });
       expect(within(screen.getByTestId("box-setup")).getByText("Refresh the project list (while you have signal) to choose a gateway.")).toBeTruthy();
       expect(screen.queryByTestId("box-install")).toBeNull();
+    });
+  });
+
+  describe("Step 3: only the chosen gateway's poles", () => {
+    const SPLIT = {
+      ...OPTIONS,
+      projects: OPTIONS.projects.map((p, i) =>
+        i === 0
+          ? {
+              ...p,
+              stickerNumbers: ["CHA-1157", "CHA-1158", "CHA-1159"],
+              setup: {
+                leadsunProject: true,
+                gateways: [
+                  { code: "GW-N", name: "Test Gateway CHA-1157", groupId: 21 },
+                  { code: "GW-S", name: "Test Gateway CHA-1159", groupId: 22 },
+                  { code: "GW-X", name: "Unplanned gateway", groupId: 23 },
+                ],
+              },
+              gatewayPlans: [
+                { name: "Test Gateway CHA-1157", poleNumber: "CHA-1157", connectedPoles: ["CHA-1157", "CHA-1158"] },
+                { name: "Test Gateway CHA-1159", poleNumber: "CHA-1159", connectedPoles: ["CHA-1159"] },
+              ],
+            }
+          : p,
+      ),
+    };
+    const chooseGateway = async (label: string) => {
+      await fireEvent.press(within(screen.getByTestId("box-setup")).getByRole("button", { name: /^Gateway: / }));
+      await fireEvent.press(screen.getByRole("button", { name: `Choose ${label}` }));
+    };
+    const stickerOptions = async () => {
+      await fireEvent.press(screen.getByRole("button", { name: /^Sticker \/ Pole Number: / }));
+      const labels = screen.queryAllByRole("button", { name: /^Choose / }).map((b) => b.props.accessibilityLabel.replace("Choose ", ""));
+      await fireEvent.press(screen.getByRole("button", { name: "Close Sticker / Pole Number" }));
+      return labels;
+    };
+
+    it("lists only the chosen gateway's connected poles, and clears the sticker on switching", async () => {
+      await renderScreen({ online: true, getInstallOptions: jest.fn().mockResolvedValue(SPLIT) });
+      await chooseGateway("Test Gateway CHA-1157 · GW-N");
+      expect(await stickerOptions()).toEqual(["CHA-1157", "CHA-1158"]);
+      await choose("Sticker / Pole Number", "CHA-1158");
+
+      await chooseGateway("Test Gateway CHA-1157 · GW-N"); // the same gateway again: kept
+      expect(screen.getByRole("button", { name: /^Sticker \/ Pole Number: CHA-1158/ })).toBeTruthy();
+
+      await chooseGateway("Test Gateway CHA-1159 · GW-S");
+      expect(screen.getByRole("button", { name: /^Sticker \/ Pole Number: Choose a sticker/ })).toBeTruthy(); // cleared
+      expect(await stickerOptions()).toEqual(["CHA-1159"]);
+
+      // Back to the first gateway: its old sticker doesn't silently come back.
+      await chooseGateway("Test Gateway CHA-1157 · GW-N");
+      expect(screen.getByRole("button", { name: /^Sticker \/ Pole Number: Choose a sticker/ })).toBeTruthy();
+    });
+
+    it("lists only this project's poles, even if the gateway is connected to another project's", async () => {
+      // The gateway was used before, for another project: its ConnectedPoles include those poles too.
+      const REUSED = {
+        ...SPLIT,
+        projects: SPLIT.projects.map((p, i) =>
+          i === 0
+            ? {
+                ...p,
+                gatewayPlans: [
+                  {
+                    name: "Test Gateway CHA-1157",
+                    poleNumber: "CHA-1157",
+                    connectedPoles: ["OLD-0901", "CHA-1157", "OLD-0902", "CHA-1158", "BAB-1"],
+                  },
+                ],
+              }
+            : p,
+        ),
+      };
+      await renderScreen({ online: true, getInstallOptions: jest.fn().mockResolvedValue(REUSED) });
+      await chooseGateway("Test Gateway CHA-1157 · GW-N");
+      // Not OLD-0901/OLD-0902 (an earlier project), nor BAB-1 (another project's sticker).
+      expect(await stickerOptions()).toEqual(["CHA-1157", "CHA-1158"]);
+    });
+
+    it("says so when no poles are planned for the chosen gateway", async () => {
+      await renderScreen({ online: true, getInstallOptions: jest.fn().mockResolvedValue(SPLIT) });
+      await chooseGateway("Unplanned gateway · GW-X");
+      expect(await stickerOptions()).toEqual([]);
+      await fireEvent.press(screen.getByRole("button", { name: /^Sticker \/ Pole Number: / }));
+      expect(screen.getByText("No poles are assigned to this gateway yet. If that's not right, tap Refresh while you have signal.")).toBeTruthy();
+    });
+
+    it("says so once every pole for the gateway has been submitted", async () => {
+      await renderScreen({ online: false, getInstallOptions: jest.fn().mockResolvedValue(SPLIT) });
+      await chooseGateway("Test Gateway CHA-1159 · GW-S");
+      await screen.findByText("Latitude 27.950575");
+      await choose("Sticker / Pole Number", "CHA-1159");
+      await typeSerial("Light Head Serial Number", "LH-1");
+      await typeSerial("Solar Panel Serial Number", "SP-1");
+      await submit();
+      await screen.findByText(/Install for CHA-1159 saved on this phone/);
+      await fireEvent.press(screen.getByRole("button", { name: /^Sticker \/ Pole Number: / }));
+      expect(screen.getByText("Every pole for this gateway has been submitted.")).toBeTruthy();
     });
   });
 });

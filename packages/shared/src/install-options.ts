@@ -1,5 +1,5 @@
 import type { InstallOptionsResponse } from "./api-contract";
-import type { LeadsunProject } from "./types";
+import type { LeadsunProject, ProjectGatewayPlan } from "./types";
 
 export type InstallProjectOption = InstallOptionsResponse["projects"][number];
 
@@ -69,16 +69,67 @@ export function gatewayGroupName(poleNumber: string, projectName: string): strin
 }
 
 /**
- * Whether a gateway pole already has its gateway registered: a gateway whose
- * group name is that pole number (followed by the project name, or alone).
+ * Whether a gateway pole already has its gateway registered: a registered
+ * gateway (Leadsun group) whose name contains that pole number as a word —
+ * the planned name ("Test Gateway TESTSL1-1001") or the older
+ * "<pole> <project>" format.
  */
 export function isGatewayPoleRegistered(poleNumber: string, gateways: readonly { name: string }[]): boolean {
+  return gateways.some((g) => nameHasPole(g.name, poleNumber));
+}
+
+/**
+ * Whether a gateway (group) name contains the pole number as a whole word:
+ * "Test Gateway TESTSL1-1001" and "TESTSL1-1001 Spine Road" both name
+ * TESTSL1-1001, but neither names TESTSL1-100.
+ */
+function nameHasPole(name: string, poleNumber: string): boolean {
   const pole = poleNumber.trim().toUpperCase();
-  return gateways.some((g) => {
-    const name = g.name.trim().toUpperCase();
-    return name === pole || name.startsWith(`${pole} `);
-  });
+  return Boolean(pole) && name.trim().toUpperCase().split(/\s+/).includes(pole);
 }
 
 /** The longest gateway serial number accepted (a guard against junk, not a format rule). */
 export const GATEWAY_SERIAL_MAX_LENGTH = 64;
+
+/** The planned gateways from a project's `gateways` field (a JSON string or a list), skipping malformed entries. */
+export function parseGatewayPlans(raw: unknown): ProjectGatewayPlan[] {
+  let value = raw;
+  if (typeof raw === "string") {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(value)) return [];
+  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const e = entry as Record<string, unknown>;
+    const name = text(e.Name);
+    const poleNumber = text(e.PoleNumber);
+    if (!name || !poleNumber) return [];
+    const connected = Array.isArray(e.ConnectedPoles) ? e.ConnectedPoles.map(text).filter(Boolean) : [];
+    return [{ name, poleNumber, controllerId: text(e.ControllerId) || null, connectedPoles: connected }];
+  });
+}
+
+/** The planned gateway for a gateway pole, if the project names one. */
+export function gatewayPlanForPole(poleNumber: string, plans: readonly ProjectGatewayPlan[]): ProjectGatewayPlan | null {
+  const pole = poleNumber.trim().toUpperCase();
+  return plans.find((p) => p.poleNumber.toUpperCase() === pole) ?? null;
+}
+
+/**
+ * The poles to install for a registered gateway (Step 3): its planned
+ * gateway's ConnectedPoles — matched by name, or else by the gateway pole
+ * named in it. Null when no planned gateway matches.
+ */
+export function connectedPolesFor(
+  gateway: { name: string },
+  plans: readonly Pick<ProjectGatewayPlan, "name" | "poleNumber" | "connectedPoles">[],
+): string[] | null {
+  const byName = plans.find((p) => p.name.trim().toUpperCase() === gateway.name.trim().toUpperCase());
+  const plan = byName ?? plans.find((p) => nameHasPole(gateway.name, p.poleNumber));
+  return plan ? plan.connectedPoles : null;
+}

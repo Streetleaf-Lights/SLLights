@@ -275,6 +275,8 @@ export interface InstallOptionsResponse {
     stickerNumbers: string[];
     /** The warehouse's setup (Leadsun project, gateways); absent in lists saved before it existed. */
     setup?: InstallProjectSetup;
+    /** The planned gateways and their poles (`gateways`): Step 3 lists a chosen gateway's ConnectedPoles. */
+    gatewayPlans?: { name: string; poleNumber: string; connectedPoles: string[] }[];
   }[];
 }
 

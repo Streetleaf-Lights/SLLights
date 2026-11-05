@@ -70,6 +70,19 @@ export interface LeadsunLampStatus {
   lampPower2: number;
 }
 
+/**
+ * A planned gateway from the project's `gateways` field: its name (used as
+ * the Leadsun group name when it's registered), its gateway pole, and the
+ * poles to be installed for it. What's actually been registered is still
+ * read from leadsunProject.
+ */
+export interface ProjectGatewayPlan {
+  name: string;
+  poleNumber: string;
+  controllerId: string | null;
+  connectedPoles: string[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -82,6 +95,8 @@ export interface Project {
    * with any is one Streetleaf Crew work on — see crew-access.ts.
    */
   stickerNumbers: string[];
+  /** The project's planned gateways (`gateways`); absent from older data. */
+  gatewayPlans?: ProjectGatewayPlan[];
 }
 
 /**

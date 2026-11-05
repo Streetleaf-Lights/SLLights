@@ -29,6 +29,7 @@ import type {
   User,
 } from "./types";
 import { time } from "./timing";
+import { parseGatewayPlans } from "@sllights/shared/install-options";
 
 const APIM_BASE_URL =
   process.env.NEXT_PUBLIC_APIM_BASE_URL || "https://lights-v2-apim.azure-api.net";
@@ -257,6 +258,8 @@ export interface RawProject {
   customerId?: string | null;
   /** JSON-stringified string[] (like poleNumbers), e.g. '["CHA-1157","CHA-1158"]'; may also arrive already parsed. */
   stickerNumbers?: string | string[] | null;
+  /** The planned gateways: a JSON-stringified list of { Name, PoleNumber, ControllerId, ConnectedPoles }. */
+  gateways?: unknown;
 }
 
 /** stickerNumbers as a clean list, whether it arrives as a JSON string or an array. */
@@ -273,6 +276,7 @@ export function normalizeProject(raw: RawProject): Project {
     name: raw.name,
     leadsunProject: parseLeadsunProject(raw.leadsunProject),
     active: raw.active,
+    gatewayPlans: parseGatewayPlans(raw.gateways),
   };
 }
 

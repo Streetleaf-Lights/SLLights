@@ -2214,3 +2214,18 @@ describe("getPolesPage: fresh", () => {
   });
 });
 
+describe("normalizeProject: planned gateways", () => {
+  it("reads the project's `gateways` (a JSON string) into gatewayPlans", () => {
+    const project = normalizeProject({
+      id: "p",
+      name: "P",
+      active: true,
+      gateways: '[{"Name":"Test Gateway TESTSL1-1001","PoleNumber":"TESTSL1-1001","ControllerId":"12607D38CF","ConnectedPoles":["TESTSL1-1001","TESTSL1-1002"]}]',
+    } as Parameters<typeof normalizeProject>[0]);
+    expect(project.gatewayPlans).toEqual([
+      { name: "Test Gateway TESTSL1-1001", poleNumber: "TESTSL1-1001", controllerId: "12607D38CF", connectedPoles: ["TESTSL1-1001", "TESTSL1-1002"] },
+    ]);
+    expect(normalizeProject({ id: "q", name: "Q", active: true } as Parameters<typeof normalizeProject>[0]).gatewayPlans).toEqual([]);
+  });
+});
+

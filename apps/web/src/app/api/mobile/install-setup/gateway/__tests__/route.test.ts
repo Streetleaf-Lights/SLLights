@@ -28,6 +28,10 @@ const project = (id: string, extra: Record<string, unknown> = {}) => ({
   active: true,
   stickerNumbers: ["S-1"],
   leadsunProject: leadsun(),
+  // The planned gateways (`gateways`): TESTSL1-1001's is named "Test Gateway TESTSL1-1001".
+  gatewayPlans: [
+    { name: "Test Gateway TESTSL1-1001", poleNumber: "TESTSL1-1001", controllerId: "12607D38CF", connectedPoles: ["TESTSL1-1001", "TESTSL1-1002"] },
+  ],
   ...extra,
 });
 const pole = (poleNumber: string, isGateway: boolean, projectId = "p1") => ({ id: `id-${poleNumber}`, poleNumber, isGateway, projectId, customerId: "c1" });
@@ -40,7 +44,7 @@ beforeEach(() => {
     new Response(
       JSON.stringify({
         projectId: "p1",
-        leadsunProject: leadsun([{ GatewayCode: "GT12L94A24072662", GroupName: "TESTSL1-1001 Streetleaf - SL1 Test" }]),
+        leadsunProject: leadsun([{ GatewayCode: "GT12L94A24072662", GroupName: "Test Gateway TESTSL1-1001" }]),
       }),
       { status: 201 },
     ),
@@ -49,6 +53,9 @@ beforeEach(() => {
     project("p1"),
     project("p-new", { leadsunProject: null }),
     project("p-done", { leadsunProject: leadsun([{ GatewayCode: "GW-1", GroupName: "TESTSL1-1001 Streetleaf - SL1 Test" }]) }),
+    project("p-unplanned", { gatewayPlans: [] }),
+    // Registered under the planned name: counts as registered too.
+    project("p-done-new-name", { leadsunProject: leadsun([{ GatewayCode: "GW-2", GroupName: "Test Gateway TESTSL1-1001" }]) }),
   ]);
   m.getPolesPage.mockImplementation(async ({ projectId }: { projectId: string }) => {
     const items = [pole("TESTSL1-1001", true, projectId), pole("TESTSL1-1002", false, projectId), pole("OTHER-1", true, "elsewhere")];
@@ -78,7 +85,7 @@ describe("POST /api/mobile/install-setup/gateway (Register gateway)", () => {
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({
       projectId: "p1",
-      gateways: [{ code: "GT12L94A24072662", name: "TESTSL1-1001 Streetleaf - SL1 Test", groupId: 1890 }],
+      gateways: [{ code: "GT12L94A24072662", name: "Test Gateway TESTSL1-1001", groupId: 1890 }],
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toMatch(/\/populateLeadsunGateway$/);
@@ -87,7 +94,7 @@ describe("POST /api/mobile/install-setup/gateway (Register gateway)", () => {
     expect(JSON.parse(init.body)).toEqual({
       LeadsunProjectId: "751", // ours, not the request's "999"
       GatewaySerialNumber: "AEXSAM2324070259",
-      GroupName: "TESTSL1-1001 Streetleaf - SL1 Test", // "<gateway pole> <project name>"
+      GroupName: "Test Gateway TESTSL1-1001", // the planned gateway's Name
     });
     expect(m.revalidateTag).toHaveBeenCalledWith("projects", { expire: 0 });
   });
@@ -106,6 +113,7 @@ describe("POST /api/mobile/install-setup/gateway (Register gateway)", () => {
     ["there's no serial", { ...good, gatewaySerial: "  " }, 400, "Gateway Serial Number is required."],
     ["the serial is too long", { ...good, gatewaySerial: "X".repeat(65) }, 400, "That gateway serial number is too long."],
     ["there's no pole", { ...good, poleNumber: "" }, 400, "A project and gateway pole are required."],
+    ["no gateway is planned for the pole", { ...good, projectId: "p-unplanned" }, 422, "No gateway is planned for TESTSL1-1001 in this project."],
   ])("refuses when %s, without calling APIM", async (_why, body, status, error) => {
     const res = await post(body);
     expect(res.status).toBe(status);
@@ -140,6 +148,7 @@ describe("GET /api/mobile/install-setup/gateway-poles", () => {
   it("lists the project's gateway poles, and which already have a gateway", async () => {
     expect(await (await get("?projectId=p1")).json()).toEqual({ poles: [{ poleNumber: "TESTSL1-1001", registered: false }] });
     expect(await (await get("?projectId=p-done")).json()).toEqual({ poles: [{ poleNumber: "TESTSL1-1001", registered: true }] });
+    expect(await (await get("?projectId=p-done-new-name")).json()).toEqual({ poles: [{ poleNumber: "TESTSL1-1001", registered: true }] });
   });
 
   it("needs a project on the Install screen, and the Install tab's roles", async () => {

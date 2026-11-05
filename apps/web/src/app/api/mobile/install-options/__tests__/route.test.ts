@@ -48,8 +48,8 @@ describe("GET /api/mobile/install-options", () => {
     const body = await res.json();
     const noSetup = { leadsunProject: false, gateways: [] };
     expect(body.projects).toEqual([
-      { id: "p4", name: "Alpha Street", customerName: "Babcock Ranch", stickerNumbers: ["BAB-1"], setup: noSetup },
-      { id: "p1", name: "Spine Road", customerName: "Coastal", stickerNumbers: ["CHA-1157", "CHA-1158"], setup: noSetup },
+      { id: "p4", name: "Alpha Street", customerName: "Babcock Ranch", stickerNumbers: ["BAB-1"], setup: noSetup, gatewayPlans: [] },
+      { id: "p1", name: "Spine Road", customerName: "Coastal", stickerNumbers: ["CHA-1157", "CHA-1158"], setup: noSetup, gatewayPlans: [] },
     ]);
     expect(Number.isNaN(Date.parse(body.generatedAt))).toBe(false);
   });
@@ -69,6 +69,17 @@ describe("GET /api/mobile/install-options", () => {
     ]);
     const body = await (await call("Streetleaf Crew")).json();
     expect(body.projects[0].setup).toEqual({ leadsunProject: true, gateways: [{ code: "GW-0042", name: "North", groupId: 1 }] });
+  });
+
+  it("includes each project's planned gateways and their poles (for Step 3)", async () => {
+    allProjects.mockResolvedValue([
+      {
+        ...project("p1", "Spine Road", "c2", ["CHA-1157"]),
+        gatewayPlans: [{ name: "Test Gateway CHA-1157", poleNumber: "CHA-1157", controllerId: "C1", connectedPoles: ["CHA-1157"] }],
+      },
+    ]);
+    const body = await (await call("Streetleaf Crew")).json();
+    expect(body.projects[0].gatewayPlans).toEqual([{ name: "Test Gateway CHA-1157", poleNumber: "CHA-1157", connectedPoles: ["CHA-1157"] }]);
   });
 
   it("is available to Streetleaf Admins too (they have the Install tab)", async () => {

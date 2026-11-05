@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
           // The warehouse's setup (Leadsun project, gateways): field installs
           // need a gateway. Saved on the phone with the rest, for offline use.
           setup: installSetupFrom(p.leadsunProject),
+          // The planned gateways' poles: Step 3 lists only the chosen gateway's.
+          gatewayPlans: (p.gatewayPlans ?? []).map(({ name, poleNumber, connectedPoles }) => ({ name, poleNumber, connectedPoles })),
         }))
         .sort(
           (a, b) =>

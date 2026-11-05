@@ -76,3 +76,43 @@ describe("gateway registration rules", () => {
     expect(isGatewayPoleRegistered("TESTSL1-1002", gateways)).toBe(false);
   });
 });
+
+import { connectedPolesFor, gatewayPlanForPole, parseGatewayPlans } from "../install-options";
+
+describe("planned gateways (the project's `gateways` field)", () => {
+  // As /getProjects sends it: a JSON string.
+  const RAW =
+    '[{"Name":"Test Gateway TESTSL1-1001","PoleNumber":"TESTSL1-1001","ControllerId":"12607D38CF","ConnectedPoles":["TESTSL1-1001","TESTSL1-1002","TESTSL1-1003"]},' +
+    '{"Name":"Test Gateway TESTSL1-1004","PoleNumber":"TESTSL1-1004","ControllerId":"12607ED96C","ConnectedPoles":["TESTSL1-1004","TESTSL1-1005","TESTSL1-1006"]}]';
+  const plans = parseGatewayPlans(RAW);
+
+  it("reads the JSON string (or a list), skipping malformed entries", () => {
+    expect(plans).toEqual([
+      { name: "Test Gateway TESTSL1-1001", poleNumber: "TESTSL1-1001", controllerId: "12607D38CF", connectedPoles: ["TESTSL1-1001", "TESTSL1-1002", "TESTSL1-1003"] },
+      { name: "Test Gateway TESTSL1-1004", poleNumber: "TESTSL1-1004", controllerId: "12607ED96C", connectedPoles: ["TESTSL1-1004", "TESTSL1-1005", "TESTSL1-1006"] },
+    ]);
+    expect(parseGatewayPlans(JSON.parse(RAW))).toEqual(plans);
+    expect(parseGatewayPlans([{ Name: "", PoleNumber: "X" }, null, { Name: "N", PoleNumber: "P" }])).toEqual([
+      { name: "N", poleNumber: "P", controllerId: null, connectedPoles: [] },
+    ]);
+    expect(parseGatewayPlans("not json")).toEqual([]);
+    expect(parseGatewayPlans(undefined)).toEqual([]);
+  });
+
+  it("finds a gateway pole's planned name (used when registering it)", () => {
+    expect(gatewayPlanForPole("testsl1-1004", plans)?.name).toBe("Test Gateway TESTSL1-1004");
+    expect(gatewayPlanForPole("TESTSL1-1002", plans)).toBeNull();
+  });
+
+  it("gives a registered gateway's poles: matched by name, or by its gateway pole", () => {
+    expect(connectedPolesFor({ name: "Test Gateway TESTSL1-1004" }, plans)).toEqual(["TESTSL1-1004", "TESTSL1-1005", "TESTSL1-1006"]);
+    // Registered earlier under the older "<pole> <project>" name.
+    expect(connectedPolesFor({ name: "TESTSL1-1001 Streetleaf - SL1 Test" }, plans)).toEqual(["TESTSL1-1001", "TESTSL1-1002", "TESTSL1-1003"]);
+    expect(connectedPolesFor({ name: "Some other gateway" }, plans)).toBeNull();
+  });
+
+  it("knows a gateway pole is registered under the planned name too", () => {
+    expect(isGatewayPoleRegistered("TESTSL1-1001", [{ name: "Test Gateway TESTSL1-1001" }])).toBe(true);
+    expect(isGatewayPoleRegistered("TESTSL1-100", [{ name: "Test Gateway TESTSL1-1001" }])).toBe(false);
+  });
+});

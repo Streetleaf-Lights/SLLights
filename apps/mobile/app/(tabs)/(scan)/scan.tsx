@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Crypto from "expo-crypto";
-import { installReadiness, remainingInstallOptions, stickerKey } from "@sllights/shared/install-options";
+import { connectedPolesFor, installReadiness, remainingInstallOptions, stickerKey } from "@sllights/shared/install-options";
 import {
   INSTALL_NOTES_MAX_LENGTH,
   validateInstallDraft,
@@ -71,6 +71,11 @@ export default function InstallScreen() {
   const gateways = project?.setup?.gateways ?? [];
   const chosenCode = chosenGateway && chosenGateway.projectId === project?.id ? chosenGateway.code : null;
   const gateway = gateways.length === 1 ? gateways[0] : (gateways.find((g) => g.code === chosenCode) ?? null);
+  // Step 3 lists only the chosen gateway's poles (its planned ConnectedPoles)
+  // that haven't been submitted yet. Null: no planned gateway matches it.
+  const gatewayPoles = project && gateway ? connectedPolesFor(gateway, project.gatewayPlans ?? []) : null;
+  const gatewayPoleSet = new Set((gatewayPoles ?? []).map((p) => p.trim().toUpperCase()));
+  const stickerOptions = project ? project.stickerNumbers.filter((n) => gatewayPoleSet.has(n.trim().toUpperCase())) : [];
   const { state: location, capture } = useLocationFix({ auto: true });
   const [lightHeadSerial, setLightHeadSerial] = useState("");
   const [solarPanelSerial, setSolarPanelSerial] = useState("");
@@ -151,7 +156,7 @@ export default function InstallScreen() {
       solarPanelSerial,
       projectId: project?.id ?? "",
       gateway: gateway ? { code: gateway.code, name: gateway.name, groupId: gateway.groupId ?? null } : null,
-      poleNumber: project && sticker && project.stickerNumbers.includes(sticker) ? sticker : "",
+      poleNumber: sticker && stickerOptions.includes(sticker) ? sticker : "",
       location: fix ? { latitude: fix.latitude, longitude: fix.longitude, accuracyMeters: fix.accuracyMeters } : null,
       notes,
     });
@@ -259,7 +264,11 @@ export default function InstallScreen() {
               onSetUp={() => confirmSetUp(project.id, project.name)}
               registering={registering}
               selectedGatewayCode={gateway?.code ?? null}
-              onSelectGateway={(code) => setChosenGateway({ projectId: project.id, code })}
+              onSelectGateway={(code) => {
+                if (code === gateway?.code) return;
+                setChosenGateway({ projectId: project.id, code });
+                setSticker(null); // another gateway, other poles
+              }}
               gatewayError={errors.gateway}
               refreshKey={setupRefresh}
               onRegister={(pole) => confirmRegister(project.id, pole, gatewaySerial.trim())}
@@ -295,10 +304,14 @@ export default function InstallScreen() {
               required
               disabled={!project}
               placeholder={project ? "Choose a sticker" : "Choose a project first"}
-              options={(project?.stickerNumbers ?? []).map((n) => ({ value: n, label: n }))}
-              value={sticker}
+              options={stickerOptions.map((n) => ({ value: n, label: n }))}
+              value={sticker && stickerOptions.includes(sticker) ? sticker : null}
               onChange={setSticker}
-              emptyText="Every sticker in this project has been submitted."
+              emptyText={
+                gatewayPoles === null || gatewayPoles.length === 0
+                  ? "No poles are assigned to this gateway yet. If that's not right, tap Refresh while you have signal."
+                  : "Every pole for this gateway has been submitted."
+              }
               error={errors.poleNumber}
             />
 

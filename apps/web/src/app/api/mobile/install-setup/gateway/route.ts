@@ -2,7 +2,7 @@ import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import type { RegisterGatewayResponse } from "@sllights/shared/api-contract";
 import { canUseFieldTools } from "@sllights/shared/auth-role";
-import { GATEWAY_SERIAL_MAX_LENGTH, gatewayGroupName, installSetupFrom } from "@sllights/shared/install-options";
+import { GATEWAY_SERIAL_MAX_LENGTH, gatewayPlanForPole, installSetupFrom } from "@sllights/shared/install-options";
 import { ApimError, populateLeadsunGateway } from "@/lib/apim";
 import { findInstallProject, gatewayPolesFor } from "@/lib/install-setup";
 import { requireSession } from "@/lib/require-session";
@@ -11,12 +11,14 @@ import { requireSession } from "@/lib/require-session";
  * POST /api/mobile/install-setup/gateway { projectId, poleNumber, gatewaySerial }
  * — the warehouse's "Register gateway" (Install screen, Step 2), via APIM's
  * populateLeadsunGateway. Everything sent to APIM comes from our records
- * except the scanned serial: the Leadsun project id, and the group name
- * "<gateway pole> <project name>".
+ * except the scanned serial: the Leadsun project id, and the group name —
+ * the planned gateway's Name from the project's `gateways`
+ * ("Test Gateway TESTSL1-1001").
  *  - Field roles only (403); Install projects only (404).
  *  - The project must be set up first (409).
  *  - The pole must be one of the project's gateway poles (422) without a
- *    gateway yet (409) — no duplicate groups on Leadsun.
+ *    gateway yet (409) — no duplicate groups on Leadsun — with a planned
+ *    gateway in `gateways` (422).
  * Afterwards the cached project lists are cleared.
  */
 export async function POST(request: NextRequest) {
@@ -56,9 +58,14 @@ export async function POST(request: NextRequest) {
     if (pole.registered) {
       return NextResponse.json({ error: `A gateway is already registered for ${pole.poleNumber}.` }, { status: 409 });
     }
+    // Its Leadsun group name is the planned gateway's Name (the project's `gateways`).
+    const plan = gatewayPlanForPole(pole.poleNumber, project.gatewayPlans ?? []);
+    if (!plan) {
+      return NextResponse.json({ error: `No gateway is planned for ${pole.poleNumber} in this project.` }, { status: 422 });
+    }
 
     const updated = await populateLeadsunGateway(
-      { leadsunProjectId: String(leadsunProjectId), gatewaySerialNumber: gatewaySerial, groupName: gatewayGroupName(pole.poleNumber, project.name) },
+      { leadsunProjectId: String(leadsunProjectId), gatewaySerialNumber: gatewaySerial, groupName: plan.name },
       token,
     );
     revalidateTag("projects", { expire: 0 });
